@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { ProtectedRoute } from "@/components/protected-route"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +32,8 @@ import { AssetService, type Asset } from "@/lib/asset-service"
 import { PriceService } from "@/lib/price-service"
 import { AssetSelector } from "@/components/asset-selector"
 import { LeagueService, type League } from "@/lib/league-service"
+import { handleCheckout } from "@/lib/checkout-service"
+import { useLeagueAccess } from "@/hooks/useLeagueAccess"
 
 export default function TradePage() {
   const { user } = useAuth()
@@ -57,10 +59,79 @@ export default function TradePage() {
   const [tradeLoading, setTradeLoading] = useState(false)
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
   const [assets, setAssets] = useState<Asset[]>([
-    { symbol: 'AUDUSD', name: 'Australian Dollar / US Dollar', asset_class: 'forex' },
+    {
+      id: 'mock-audusd-id',
+      symbol: 'AUDUSD',
+      name: 'Australian Dollar / US Dollar',
+      asset_class: 'forex',
+      base_currency: 'AUD',
+      quote_currency: 'USD',
+      precision: 5,
+      lot_size: 100000,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
   ])
   const [league, setLeague] = useState<League | null>(null)
   const [optionsEligible, setOptionsEligible] = useState(false)
+
+  const { allowed, loading: leagueAccessLoading } = useLeagueAccess()
+
+  const selectedPrice = prices.find((p) => p.symbol === selectedSymbol)
+  const hasPriceError = priceErrors[selectedSymbol] === true
+  const effectivePrice = orderType === "limit" && limitPrice ? Number.parseFloat(limitPrice) : selectedPrice?.price || 0
+
+  // Define the fixed opening balance
+  const OPENING_BALANCE = 100000.0;
+
+  // Calculate percentage return
+  const percentageReturn = useMemo(() => {
+    if (portfolio?.total_equity === undefined || portfolio?.total_equity === null) {
+      return null; // Cannot calculate if equity is not available
+    }
+
+    const returnAmount = portfolio.total_equity - OPENING_BALANCE;
+    return (returnAmount / OPENING_BALANCE) * 100;
+  }, [portfolio?.total_equity]); // Recalculate when total_equity changes
+
+  const { tradeValue, marginRequired, commission, pipValue } = useMemo(() => {
+    let tradeValue = 0; // Notional Value
+    let marginRequired = 0;
+    let commission = 0;
+    let pipValue = 0;
+
+    if (selectedAsset && effectivePrice && quantity) {
+      const quantityNum = Number.parseFloat(quantity);
+      const leverageAmount = leverage[0] || 1; // Default leverage to 1 if not set
+
+      let effectiveQuantity = quantityNum;
+      if (selectedAsset.asset_class === "forex") {
+        // Assume quantity is in lots for Forex, multiply by lot size to get units
+        effectiveQuantity = quantityNum * (selectedAsset.lot_size || 100000);
+      }
+      tradeValue = effectiveQuantity * effectivePrice;
+
+      // Calculate Margin Required
+      marginRequired = tradeValue / leverageAmount;
+
+      // Calculate Commission (using the same rate as backend)
+      // NOTE: COMMISSION_RATE needs to be accessible here or hardcoded/defined locally
+      // For now, hardcoding based on lib/trading-service.ts
+      const frontendCommissionRate = 0.001;
+      commission = tradeValue * frontendCommissionRate;
+
+      // Calculate Pip Value for Forex (based on standard lot size if applicable)
+      if (selectedAsset.asset_class === "forex") {
+        const standardLotSize = selectedAsset.lot_size || 100000;
+        // Pip value calculation: (pip size / exchange rate) * standard lot size
+        // For most pairs, pip size is 0.0001, for JPY pairs it's 0.01
+        const pipSize = selectedAsset.symbol.includes('JPY') ? 0.01 : 0.0001;
+        pipValue = (pipSize / effectivePrice) * standardLotSize;
+      }
+    }
+    return { tradeValue, marginRequired, commission, pipValue };
+  }, [selectedAsset, effectivePrice, quantity, leverage]);
 
   // Define fetchPortfolio
   const fetchPortfolio = useCallback(async () => {
@@ -139,6 +210,10 @@ export default function TradePage() {
       const symbols = ['AUDUSD']
 
       console.log("loadData: Fetching portfolio, trades, prices, and league")
+      if (!user) {
+        console.log("loadData: User is null, skipping data fetch")
+        return
+      }
       const [portfolioData, tradesData, pricesData, leagueData] = await Promise.all([
         TradingService.getPortfolio(user.id),
         TradingService.getTrades(user.id),
@@ -207,7 +282,14 @@ export default function TradePage() {
     // Call the loadData function
     loadData()
 
-  }, [user, loadData])
+    // Set initial selected asset to AUDUSD
+    const audusdAsset = assets.find(asset => asset.symbol === 'AUDUSD');
+    if(audusdAsset) {
+      setSelectedSymbol('AUDUSD');
+      setSelectedAsset(audusdAsset);
+    }
+
+  }, [user, loadData, assets])
 
   // Set up price updates every 10 seconds
   useEffect(() => {
@@ -220,41 +302,6 @@ export default function TradePage() {
     return () => clearInterval(interval)
   }, [user, fetchPrices])
 
-  // Fetch price for selected symbol when it changes - still fetch for selected even if not in core list
-  useEffect(() => {
-    if (!selectedSymbol || selectedSymbol === 'AUDUSD') return // Only fetch if a symbol OTHER than AUDUSD is selected
-
-    const fetchSelectedPrice = async () => {
-      if (priceLoading) return
-
-      const priceData = await PriceService.getPrice(selectedSymbol)
-      if (priceData) {
-        setPrices(currentPrices => {
-          const existingIndex = currentPrices.findIndex(p => p.symbol === priceData.symbol)
-          if (existingIndex > -1) {
-            return [
-              ...currentPrices.slice(0, existingIndex),
-              priceData,
-              ...currentPrices.slice(existingIndex + 1)
-            ]
-          } else {
-            return [...currentPrices, priceData]
-          }
-        })
-        setPriceErrors(currentErrors => {
-          const newErrors = { ...currentErrors }
-          delete newErrors[selectedSymbol]
-          return newErrors
-        })
-      } else {
-        setPriceErrors(currentErrors => ({ ...currentErrors, [selectedSymbol]: true }))
-      }
-    }
-
-    fetchSelectedPrice()
-
-  }, [selectedSymbol, priceLoading, setPrices, setPriceErrors]) // Dependencies
-
   // Handle enhanced trade submission - Basic implementation assumed if removed
   const handlePlaceTrade = useCallback(async () => {
     if (!user || !selectedSymbol || !quantity) return
@@ -264,7 +311,26 @@ export default function TradePage() {
       const selectedPrice = prices.find((p) => p.symbol === selectedSymbol)
       if (!selectedPrice) {
         alert("Price not available for selected symbol")
+        setTradeLoading(false)
         return
+      }
+
+      if (!selectedAsset) {
+        alert("Please select a valid asset before placing a trade.")
+        console.error("Trade placement failed: No asset selected.")
+        setTradeLoading(false)
+        return
+      }
+
+      if (!selectedAsset.asset_class) {
+        alert(`Missing asset class for ${selectedAsset.symbol}. Cannot place trade.`)
+        console.error(`Trade placement failed: Missing asset_class for ${selectedAsset.symbol}.`)
+        setTradeLoading(false)
+        return
+      }
+
+      if (selectedAsset.asset_class === 'forex' && !selectedAsset.lot_size) {
+        console.warn(`Lot size not defined for Forex asset ${selectedAsset.symbol}. Using default in TradingService.`)
       }
 
       const tradeRequest: TradeRequest = {
@@ -283,9 +349,12 @@ export default function TradePage() {
         asset: selectedAsset, // Pass selectedAsset
       }
 
+      console.log('Sending trade request to server:', tradeRequest);
+
       const result = await TradingService.placeTrade(tradeRequest)
 
-      if (result) {
+      // Check if the result is a Trade object (successful trade)
+      if (result && typeof result === 'object' && 'id' in result) {
         // Reset form
         setSelectedSymbol("")
         setQuantity("")
@@ -301,11 +370,21 @@ export default function TradePage() {
         await fetchTrades()
         alert("Trade placed successfully!")
       } else {
-        alert("Failed to place trade. Please check your balance and try again.")
+        // The server returned a generic error object or something unexpected
+        const errorMessage = (result && typeof result === 'object' && result.error && result.message) ? result.message : "Failed to place trade. Please check your balance and try again.";
+        alert(errorMessage);
       }
-    } catch (error) {
-      console.error("Error placing trade:", error)
-      alert("Error placing trade: " + (error instanceof Error ? error.message : "Unknown error"))
+    } catch (error: any) {
+      let errorMsg = "Unknown error";
+
+      if (error instanceof Error) {
+        errorMsg = error.message;
+      } else if (typeof error === "object" && error !== null) {
+        errorMsg = error.message || error.error || error.msg || JSON.stringify(error);
+      }
+
+      console.error("Error placing trade:", errorMsg, error);
+      alert("Error placing trade: " + errorMsg);
     } finally {
       setTradeLoading(false)
     }
@@ -313,49 +392,34 @@ export default function TradePage() {
 
   // Handle close trade - Basic implementation assumed if removed
   const handleCloseTrade = useCallback(async (tradeId: string, symbol: string) => {
-    console.log("handleCloseTrade: called for", tradeId, symbol) // Basic log
-    // Restore or add actual implementation based on your application's logic
-    alert("Close trade logic needs to be implemented.")
+    console.log("handleCloseTrade: called for", tradeId, symbol);
+    try {
+      // Call the backend to close the trade
+      const closedTrade = await TradingService.closeTrade(tradeId);
+
+      if (closedTrade) {
+        console.log('Trade closed successfully:', closedTrade);
+        // Refresh portfolio and trades data
+        await fetchPortfolio();
+        await fetchTrades();
+        alert(`Trade ${tradeId} closed successfully!`);
+    } else {
+        console.error('Failed to close trade:', tradeId);
+        alert(`Failed to close trade ${tradeId}. Please try again.`);
+    }
+    } catch (error) {
+      console.error('Error closing trade:', error);
+      alert(`An error occurred while closing trade ${tradeId}.`);
+    }
   }, [])
 
-  const selectedPrice = prices.find((p) => p.symbol === selectedSymbol)
-  const hasPriceError = priceErrors[selectedSymbol] === true
-  const effectivePrice = orderType === "limit" && limitPrice ? Number.parseFloat(limitPrice) : selectedPrice?.price || 0
-
-  let tradeValue = 0;
-  let marginRequired = 0;
-  let pipValue = 0;
-
-  // Recalculate trade summary when relevant states change
-  if (selectedAsset && effectivePrice && quantity) {
-    if (selectedAsset.asset_class === "forex") {
-      const lotSize = selectedAsset.lot_size || 100000
-      pipValue = (0.0001 / effectivePrice) * lotSize
-
-      const marginBase = lotSize / leverage[0]
-      const marginQuote = marginBase * effectivePrice
-
-      tradeValue = Number(quantity) * lotSize
-      marginRequired = marginQuote
-    } else {
-      tradeValue = effectivePrice * Number.parseFloat(quantity)
-      marginRequired = tradeValue / leverage[0]
-    }
+  if (loading || leagueAccessLoading) {
+    return <div className="flex justify-center items-center h-screen">Loading live trading...</div>;
   }
 
-  const commission = tradeValue * 0.001; // 0.1% commission
-
-  if (loading) {
-    return (
-      <ProtectedRoute>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-            <p>Loading trading platform...</p>
-          </div>
-        </div>
-      </ProtectedRoute>
-    )
+  if (!allowed) {
+    // useLeagueAccess will handle the redirect, but we can show a message here too
+    return <div className="flex justify-center items-center h-screen">Access Denied. Redirecting...</div>;
   }
 
   return (
@@ -690,17 +754,17 @@ export default function TradePage() {
                   )}
 
                   {/* Trade Summary */}
-                  {tradeValue > 0 && !hasPriceError && (
+                  {selectedPrice && !hasPriceError && tradeValue > 0 && (
                     <div className="p-4 bg-blue-50 rounded-lg space-y-2">
                       <div className="text-sm font-medium text-blue-900">Trade Summary</div>
                       <div className="text-sm text-blue-800 space-y-1">
                         <div className="flex justify-between">
                           <span>Position Value:</span>
-                          <span className="font-medium">${tradeValue.toLocaleString()}</span>
+                          <span className="font-medium">${tradeValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Margin Required:</span>
-                          <span className="font-medium">${marginRequired.toLocaleString()}</span>
+                          <span className="font-medium">${marginRequired.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Commission:</span>
@@ -708,7 +772,7 @@ export default function TradePage() {
                         </div>
                         <div className="flex justify-between">
                           <span>Available Balance:</span>
-                          <span className="font-medium">${portfolio?.cash_balance?.toLocaleString() || "0"}</span>
+                          <span className="font-medium">${portfolio?.cash_balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0"}</span>
                         </div>
                         {leverage[0] > 1 && (
                           <div className="flex justify-between">
@@ -716,7 +780,7 @@ export default function TradePage() {
                             <span className="font-medium">{leverage[0]}x</span>
                           </div>
                         )}
-                        {selectedAsset?.asset_class === "forex" && (
+                        {selectedAsset?.asset_class === "forex" && pipValue > 0 && (
                           <>
                             <div className="flex justify-between">
                               <span>Lot Size:</span>
@@ -1013,55 +1077,30 @@ export default function TradePage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Risk Management</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Max Position:</span>
-                  <span className="font-semibold">${portfolio?.max_position_size?.toFixed(0) || "0"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Max Drawdown:</span>
-                  <span className="font-semibold text-red-600">${portfolio?.max_drawdown?.toFixed(2) || "0.00"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Prize Eligible:</span>
-                  <Badge
-                    className={
-                      portfolio?.prize_eligibility ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                    }
-                  >
-                    {portfolio?.prize_eligibility ? "Yes" : "No"}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Activity</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Last Trade:</span>
-                  <span className="font-semibold text-sm">
-                    {portfolio?.last_trade_at ? new Date(portfolio.last_trade_at).toLocaleDateString() : "Never"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Entry Fee Paid:</span>
-                  <span className="font-semibold">${portfolio?.entry_fee_paid?.toFixed(2) || "0.00"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Platform:</span>
-                  <span className="font-semibold">Web v1.0.0</span>
-                </div>
-              </CardContent>
-            </Card>
           </div>
+
+          {/* Percentage Return Box */}
+            <Card>
+              <CardHeader>
+              <CardTitle className="text-lg font-semibold">Percentage Return</CardTitle>
+              </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${percentageReturn !== null && percentageReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {percentageReturn !== null ? `$${percentageReturn.toFixed(2)}%` : '--%'}
+                </div>
+              <CardDescription>Calculated based on Total Equity / Opening Balance (100,000)</CardDescription>
+              </CardContent>
+            </Card>
+
+          {/* Portfolio Summary */}
+            <Card>
+              <CardHeader>
+              <CardTitle className="text-lg font-semibold">Portfolio Summary</CardTitle>
+              </CardHeader>
+            <CardContent>
+              {/* Existing portfolio summary content */}
+              </CardContent>
+            </Card>
         </div>
       </div>
     </ProtectedRoute>

@@ -6,7 +6,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { supabase } from "@/lib/supabaseClient"
-import { syncUserToDB } from "@/lib/user-sync"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -17,6 +16,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [username, setUsername] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
@@ -39,6 +39,12 @@ export default function SignupPage() {
       return
     }
 
+    if (!username.trim()) {
+      setError("Username is required")
+      setLoading(false)
+      return;
+    }
+
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -50,18 +56,20 @@ export default function SignupPage() {
       }
 
       if (data.user) {
-        if (data.session) {
-          // User is signed in immediately (auto-confirmed)
-          try {
-            await syncUserToDB(data.user)
-          } catch (syncError) {
-            console.error("Failed to sync user to database:", syncError)
-            // Don't block signup if sync fails, but log the error
-          }
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            username: username.trim(),
+          });
 
+        if (profileError) {
+          console.error("Error upserting profile during signup:", profileError);
+        }
+
+        if (data.session) {
           router.push("/dashboard")
         } else {
-          // Email confirmation required
           setSuccess(true)
         }
       }
@@ -146,6 +154,18 @@ export default function SignupPage() {
                 required
                 className="mt-1"
                 placeholder="Confirm your password"
+              />
+            </div>
+            <div>
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                className="mt-1"
+                placeholder="Choose a username"
               />
             </div>
             {error && (

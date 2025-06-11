@@ -131,6 +131,10 @@ export function Navbar() {
               Leaderboard
             </Link>
 
+            <Link href="/chat" className="nav-link px-4 py-2 rounded-full hover:bg-slate-50">
+              Chat
+            </Link>
+
             {navigationItems.map((item) => (
               <div key={item.name} className="relative group">
                 <button

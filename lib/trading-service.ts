@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient"
 
-interface TradeRequest {
+export interface TradeRequest {
   user_id: string
   symbol: string
   position_type: "long" | "short"
@@ -16,7 +16,13 @@ interface TradeRequest {
   asset?: any // Renamed Asset to any to avoid redeclaration
 }
 
-interface Trade {
+export interface TradeErrorResponse {
+  error: boolean;
+  message: string;
+  details?: any;
+}
+
+export interface Trade {
   id: string
   user_id: string
   symbol: string
@@ -74,7 +80,7 @@ interface Trade {
   pip_value: number | null
 }
 
-interface Portfolio {
+export interface Portfolio {
   id: string
   user_id: string
   total_equity: number
@@ -110,7 +116,7 @@ interface Portfolio {
   last_login_at: string | null
 }
 
-interface PriceData {
+export interface PriceData {
   symbol: string
   price: number
   change: number
@@ -136,6 +142,13 @@ const mockPrices: Record<string, { basePrice: number; lastUpdate: number; trend:
   "EURUSD=X": { basePrice: 1.0845, lastUpdate: Date.now(), trend: 0.0001 },
   "GBPUSD=X": { basePrice: 1.2634, lastUpdate: Date.now(), trend: -0.0002 },
   "USDJPY=X": { basePrice: 149.85, lastUpdate: Date.now(), trend: 0.0003 },
+  "AUDUSD=X": { basePrice: 0.65, lastUpdate: Date.now(), trend: -0.0001 },
+  "USDCAD=X": { basePrice: 1.3567, lastUpdate: Date.now(), trend: 0.00015 },
+  "USDCHF=X": { basePrice: 0.8978, lastUpdate: Date.now(), trend: -0.00005 },
+  "NZDUSD=X": { basePrice: 0.6056, lastUpdate: Date.now(), trend: 0.0001 },
+  "EURGBP=X": { basePrice: 0.8678, lastUpdate: Date.now(), trend: -0.00008 },
+  "EURJPY=X": { basePrice: 157.89, lastUpdate: Date.now(), trend: 0.0002 },
+  "GBPJPY=X": { basePrice: 190.23, lastUpdate: Date.now(), trend: 0.0003 },
   "BTC-USD": { basePrice: 43250.67, lastUpdate: Date.now(), trend: 0.002 },
   "ETH-USD": { basePrice: 2456.78, lastUpdate: Date.now(), trend: 0.0015 },
   "GC=F": { basePrice: 2034.5, lastUpdate: Date.now(), trend: 0.0005 },
@@ -183,7 +196,10 @@ export class TradingService {
     const bid = newPrice - spread / 2
     const ask = newPrice + spread / 2
 
-    mock.basePrice = newPrice
+    // For Forex, do not let the base price drift significantly; simulate fluctuations around the initial base
+    if (!symbol.includes("=X")) {
+      mock.basePrice = newPrice;
+    }
     mock.lastUpdate = Date.now()
     mock.trend = mock.trend + (Math.random() - 0.5) * 0.0001 // Slowly evolving trend
 
@@ -288,6 +304,19 @@ export class TradingService {
 
   static async createPortfolio(userId: string): Promise<Portfolio | null> {
     try {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("league")
+        .eq("id", userId)
+        .single();
+
+      if (profileError && profileError.code !== "PGRST116") { // PGRST116 means no rows found
+        console.error("Error fetching profile for new portfolio:", profileError);
+        // Continue to create portfolio, but with null league_id
+      }
+
+      const leagueId = profile?.league || null; // Get league from profile, default to null
+
       const { data, error } = await supabase
         .from("user_portfolio_snapshot")
         .insert({
@@ -305,7 +334,7 @@ export class TradingService {
           win_rate: 0.0,
           largest_win: 0.0,
           largest_loss: 0.0,
-          league_id: null,
+          league_id: leagueId, // Set the fetched league_id here
           competition_rank: null,
           competition_score: 0.0,
           entry_fee_paid: 0.0,
@@ -340,10 +369,24 @@ export class TradingService {
         return null
       }
 
+      // Fetch the latest league from the user's profile
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("league")
+        .eq("id", userId)
+        .single();
+
+      if (profileError && profileError.code !== "PGRST116") {
+        console.error("Error fetching profile for portfolio update:", profileError);
+      }
+
+      const updatedLeagueId = profile?.league || null; // Get league from profile, default to null
+
       const { data, error } = await supabase
         .from("user_portfolio_snapshot")
         .update({
           ...updates,
+          league_id: updatedLeagueId, // Always update league_id to match profile
           updated_at: new Date().toISOString(),
         })
         .eq("id", currentPortfolio.id)
@@ -439,61 +482,107 @@ export class TradingService {
     }
   }
 
-  static async placeTrade(tradeRequest: TradeRequest): Promise<Trade | null> {
-    try {
-      const priceData = await this.getPrice(tradeRequest.symbol)
-      if (!priceData) {
-        throw new Error("Unable to get market price")
-      }
+  static async placeTrade(tradeRequest: TradeRequest): Promise<Trade | TradeErrorResponse> {
+    console.log('Received trade request:', tradeRequest);
+    console.log('Attempting to place trade for symbol:', tradeRequest.symbol);
 
-      const portfolio = await this.getPortfolio(tradeRequest.user_id)
+    let priceData: PriceData | null = null;
+    try {
+      priceData = await this.getPrice(tradeRequest.symbol);
+    } catch (error: unknown) {
+      console.error('Error fetching price in placeTrade:', error);
+      return { error: true, message: 'Failed to fetch price for trade.' };
+    }
+
+      if (!priceData) {
+      console.error('Error in placeTrade: getPrice returned null for symbol:', tradeRequest.symbol);
+      return { error: true, message: "Unable to get market price" };
+    }
+    console.log('Fetched priceData in placeTrade:', priceData);
+
+    let portfolio: Portfolio | null = null;
+    try {
+      portfolio = await this.getPortfolio(tradeRequest.user_id);
+    } catch (error: unknown) {
+      console.error('Error fetching portfolio in placeTrade:', error);
+      return { error: true, message: 'Failed to fetch portfolio for trade.' };
+    }
+
       if (!portfolio) {
-        throw new Error("Portfolio not found")
+      console.error('Error in placeTrade: getPortfolio returned null for user:', tradeRequest.user_id);
+      return { error: true, message: "Portfolio not found" };
       }
+    console.log('Fetched portfolio:', portfolio);
 
       const { price: executionPrice, slippage } = this.calculateExecutionPrice(
         priceData,
         tradeRequest.position_type,
         tradeRequest.order_type || "market",
         tradeRequest.limit_price,
-      )
+    );
+    console.log('Calculated executionPrice in placeTrade:', executionPrice);
 
-      let positionSizeUsd: number
-      let lotSize = 1
-      let pipValue = 0
-      let marginUsed = 0; // Initialize marginUsed here
+    let positionSizeUsd: number; // Notional Value
+    let marginUsed: number; // Margin Required
+    let commission: number;
+    let pipValue: number | null = null; // Initialize pipValue
 
-      const leverage = tradeRequest.leverage || this.DEFAULT_LEVERAGE
+    const leverage = tradeRequest.leverage || this.DEFAULT_LEVERAGE;
+    console.log('Using leverage:', leverage);
 
-      if (tradeRequest.asset?.asset_class === "forex") {
-        const assetLotSize = tradeRequest.asset.lot_size || 100000
-        const marginBase = assetLotSize / leverage
-        marginUsed = marginBase * executionPrice // Assign marginUsed here for Forex
-        positionSizeUsd = tradeRequest.quantity * assetLotSize * executionPrice
-        lotSize = assetLotSize
-        pipValue = (0.0001 / executionPrice) * assetLotSize
-      } else {
-        positionSizeUsd = tradeRequest.quantity * executionPrice
-        marginUsed = positionSizeUsd / leverage; // Assign marginUsed here for non-Forex
-      }
+    // Calculate Notional Value (Position Size USD)
+    positionSizeUsd = tradeRequest.quantity * executionPrice;
+    console.log('Calculated Notional Value (USD):', positionSizeUsd.toFixed(4));
 
-      const commission = positionSizeUsd * this.COMMISSION_RATE
+    // Calculate Margin Required
+    marginUsed = positionSizeUsd / leverage;
+    console.log('Calculated Margin Required (USD):', marginUsed.toFixed(4));
 
-      let riskAmount = 0
-      if (tradeRequest.stop_loss) {
-        const stopDistance = Math.abs(executionPrice - tradeRequest.stop_loss)
-        riskAmount = stopDistance * tradeRequest.quantity
-      }
+    // Calculate Commission (0.1% of Notional Value)
+    commission = positionSizeUsd * this.COMMISSION_RATE;
+    console.log('Calculated Commission (USD):', commission.toFixed(4));
 
-      if (portfolio.cash_balance < marginUsed + commission) {
+    // Calculate Pip Value for Forex (based on standard lot size if applicable)
+    if (tradeRequest.asset?.asset_class === "forex") {
+      const standardLotSize = tradeRequest.asset?.lot_size || 100000;
+      // Pip value calculation: (pip size / exchange rate) * standard lot size
+      // For most pairs, pip size is 0.0001, for JPY pairs it's 0.01
+      const pipSize = tradeRequest.symbol.includes('JPY') ? 0.01 : 0.0001;
+      pipValue = (pipSize / executionPrice) * standardLotSize;
+      console.log('Calculated Pip Value:', pipValue.toFixed(4));
+    }
+
+    // Final balance check (Total Required = Margin Required + Commission)
+    const totalCost = marginUsed + commission;
+    console.log('Total cost for trade (Margin + Commission):', totalCost.toFixed(4));
+
+    if (portfolio.cash_balance < totalCost) {
         console.log('Insufficient balance details:', {
+        userId: tradeRequest.user_id,
+        symbol: tradeRequest.symbol,
+        quantity: tradeRequest.quantity,
+        leverage: leverage,
+        executionPrice: executionPrice,
+        positionSizeUsd: positionSizeUsd,
+        calculatedMarginUsed: marginUsed, // Log the newly calculated margin
+        calculatedCommission: commission, // Log the calculated commission
+        portfolioCashBalance: portfolio.cash_balance, // Log the user's cash balance
+        totalRequired: totalCost.toFixed(2), // Ensure totalRequired in log is formatted
+        message: "Insufficient balance for trade and commission"
+      });
+      // Instead of throwing, return an object with the details
+      return { // Return details object on insufficient balance
+        error: true,
+        message: "Insufficient balance for trade and commission",
+        details: {
           cash_balance: portfolio.cash_balance,
           marginUsed: marginUsed,
           commission: commission,
-          totalRequired: marginUsed + commission
-        });
-        throw new Error("Insufficient balance for trade and commission")
+          totalRequired: totalCost.toFixed(2),
       }
+      };
+    }
+    console.log('Balance check passed.');
 
       const tradeData = {
         user_id: tradeRequest.user_id,
@@ -506,7 +595,7 @@ export class TradingService {
         is_closed: false,
         stop_loss: tradeRequest.stop_loss || null,
         take_profit: tradeRequest.take_profit || null,
-        risk_amount: riskAmount,
+      risk_amount: 0,
         order_status: "filled" as const,
         order_type: tradeRequest.order_type || ("market" as const),
         limit_price: tradeRequest.limit_price || null,
@@ -537,9 +626,6 @@ export class TradingService {
         leverage: leverage,
         risk_warning_shown: true,
         auto_close_reason: null,
-        asset_class: tradeRequest.asset?.asset_class || null,
-        lot_size: lotSize,
-        pip_value: pipValue,
         position_size_usd: positionSizeUsd,
       }
 
@@ -560,12 +646,20 @@ export class TradingService {
 
       await this.calculatePortfolioStats(tradeRequest.user_id)
 
-      return insertedTrade
-    } catch (error) {
-      console.error("Error placing trade:", error)
-      return null
+    // Return the inserted trade ONLY after all updates are successful
+    return insertedTrade;
+
+  } catch (error: unknown) { // This outer catch should now ideally only catch errors from code NOT within the inner try/catch blocks
+    // Improved error logging
+    if (error instanceof Error) {
+      console.error("Caught error in placeTrade (outer catch):", error.message, error.stack);
+    } else {
+      console.error("Caught unknown error in placeTrade (outer catch):", error);
     }
+    // For other errors, continue to return an error object
+    return { error: true, message: error instanceof Error ? error.message : "An unexpected error occurred during trade placement." };
   }
+
 
   static async closeTrade(tradeId: string, exitPrice?: number, reason?: string): Promise<Trade | null> {
     try {
@@ -658,8 +752,8 @@ export class TradingService {
       grossPnL = (trade.entry_price - currentPrice) * trade.quantity
     }
 
-    const estimatedExitCommission = currentPrice * trade.quantity * this.COMMISSION_RATE
-    return grossPnL - estimatedExitCommission
+    // Unrealized PnL is the gross PnL before considering commissions
+    return grossPnL
   }
 
   static async updateUnrealizedPnL(userId: string, priceData: PriceData[]): Promise<void> {
