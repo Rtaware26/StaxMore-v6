@@ -22,116 +22,76 @@ export default function Psychology5() {
       </div>
 
       <div className="prose prose-lg max-w-none">
-        <div className="grid gap-8">
-          {/* Myth 1 */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <h2 className="text-2xl font-bold mb-4">🚫 Myth 1: "Tight stop-losses keep me safe"</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="bg-red-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-red-700 mb-2">The Myth</h3>
-                <p>Using very tight stops to minimize losses per trade</p>
-                <ul className="list-disc list-inside text-red-600">
-                  <li>Gets stopped out frequently</li>
-                  <li>Misses good trades</li>
-                  <li>Increases emotional pressure</li>
-                </ul>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-green-700 mb-2">The Fix</h3>
-                <p>Place stops based on market structure</p>
-                <ul className="list-disc list-inside text-green-600">
-                  <li>Use support/resistance levels</li>
-                  <li>Account for volatility</li>
-                  <li>Adjust position size instead</li>
-                </ul>
-              </div>
+        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-6 mb-8 rounded-r-lg">
+          <h3 className="text-yellow-800 font-semibold mb-4">Key Takeaways</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white p-4 rounded-lg shadow-sm">
+              <p className="font-semibold text-yellow-800">% Risk</p>
+              <p className="text-gray-600">Risk a set % per trade</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm">
+              <p className="font-semibold text-yellow-800">Position Sizing</p>
+              <p className="text-gray-600">Adjust based on stop distance</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm">
+              <p className="font-semibold text-yellow-800">Reward:Risk</p>
+              <p className="text-gray-600">Aim for 1.5–3x</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm">
+              <p className="font-semibold text-yellow-800">Consistency</p>
+              <p className="text-gray-600">Habits > trades</p>
             </div>
           </div>
+        </div>
 
-          {/* Myth 2 */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <h2 className="text-2xl font-bold mb-4">💰 Myth 2: "I'll just risk $5 per trade"</h2>
-            <div className="space-y-4">
-              <p>Fixed dollar amounts don't scale with your account. Instead:</p>
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-blue-700 mb-2">Proper Position Sizing</h3>
-                <ul className="list-disc list-inside">
-                  <li>Risk 1-2% of account per trade</li>
-                  <li>Calculate position size based on stop distance</li>
-                  <li>Adjust for volatility and timeframe</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+        <h2>🚫 Myth 1: "Tight stop-losses keep me safe"</h2>
+        <div className="bg-red-50 p-6 rounded-lg mb-6">
+          <h3 className="text-red-800 font-semibold mb-2">The Myth</h3>
+          <p>Placing stops too close to entry to "minimize risk"</p>
+        </div>
+        <div className="bg-green-50 p-6 rounded-lg mb-8">
+          <h3 className="text-green-800 font-semibold mb-2">The Fix</h3>
+          <p>Place stops based on market structure, not arbitrary distances. A stop that's too tight will get hit by normal market noise.</p>
+        </div>
 
-          {/* Myth 3 */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <h2 className="text-2xl font-bold mb-4">📊 Myth 3: "High win-rate = low risk"</h2>
-            <div className="space-y-4">
-              <p>Don't fall for the Martingale trap or ignore reward:risk ratio.</p>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-yellow-50 p-4 rounded-lg">
-                  <h3 className="font-semibold text-yellow-700 mb-2">The Problem</h3>
-                  <ul className="list-disc list-inside">
-                    <li>Martingale systems fail eventually</li>
-                    <li>Small wins can't overcome big losses</li>
-                    <li>Focus on R:R ratio instead</li>
-                  </ul>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <h3 className="font-semibold text-green-700 mb-2">The Solution</h3>
-                  <ul className="list-disc list-inside">
-                    <li>Aim for 1.5-3x reward:risk</li>
-                    <li>Let winners run</li>
-                    <li>Cut losses quickly</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
+        <h2>💰 Myth 2: "I'll just risk $5 per trade"</h2>
+        <div className="bg-red-50 p-6 rounded-lg mb-6">
+          <h3 className="text-red-800 font-semibold mb-2">The Myth</h3>
+          <p>Using fixed dollar amounts regardless of account size or setup quality</p>
+        </div>
+        <div className="bg-green-50 p-6 rounded-lg mb-8">
+          <h3 className="text-green-800 font-semibold mb-2">The Fix</h3>
+          <p>Risk a consistent percentage of your account (1-2%) and adjust position size based on stop distance. This scales with your account and protects you from overtrading.</p>
+        </div>
 
-          {/* Myth 4 */}
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <h2 className="text-2xl font-bold mb-4">🎯 Myth 4: "I'll just move my stop-loss"</h2>
-            <div className="space-y-4">
-              <p>Moving stops is a sign of poor planning and emotional trading.</p>
-              <div className="bg-purple-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-purple-700 mb-2">Better Approach</h3>
-                <ul className="list-disc list-inside">
-                  <li>Set stops before entering</li>
-                  <li>Only move to breakeven after profit</li>
-                  <li>Accept invalidation when it happens</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+        <div className="my-8">
+          <Image
+            src="/images/education/risk-reward-chart.png"
+            alt="Risk:Reward ratio visualization"
+            width={800}
+            height={400}
+            className="rounded-lg shadow-lg"
+          />
+        </div>
 
-          {/* Key Takeaways */}
-          <div className="bg-gray-50 rounded-lg p-6 shadow-md">
-            <h2 className="text-2xl font-bold mb-4">📝 Key Takeaways</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center">
-                  <span className="font-semibold w-32">% Risk:</span>
-                  <span>Risk a set % per trade</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="font-semibold w-32">Position Sizing:</span>
-                  <span>Adjust based on stop distance</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center">
-                  <span className="font-semibold w-32">Reward:Risk:</span>
-                  <span>Aim for 1.5–3x</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="font-semibold w-32">Consistency:</span>
-                  <span>Habits &gt; trades</span>
-                </div>
-              </div>
-            </div>
-          </div>
+        <h2>📊 Myth 3: "High win-rate = low risk"</h2>
+        <div className="bg-red-50 p-6 rounded-lg mb-6">
+          <h3 className="text-red-800 font-semibold mb-2">The Myth</h3>
+          <p>Focusing only on win rate while ignoring reward:risk ratios</p>
+        </div>
+        <div className="bg-green-50 p-6 rounded-lg mb-8">
+          <h3 className="text-green-800 font-semibold mb-2">The Fix</h3>
+          <p>Aim for 1.5-3x reward:risk ratios. A 40% win rate with 2:1 reward:risk is more profitable than a 60% win rate with 1:1.</p>
+        </div>
+
+        <h2>🎯 Myth 4: "I'll just move my stop-loss"</h2>
+        <div className="bg-red-50 p-6 rounded-lg mb-6">
+          <h3 className="text-red-800 font-semibold mb-2">The Myth</h3>
+          <p>Moving stops to avoid losses or "give trades room to breathe"</p>
+        </div>
+        <div className="bg-green-50 p-6 rounded-lg mb-8">
+          <h3 className="text-green-800 font-semibold mb-2">The Fix</h3>
+          <p>Set stops based on invalidation points and stick to them. Moving stops is often emotional and leads to larger losses.</p>
         </div>
 
         <div className="mt-12">
