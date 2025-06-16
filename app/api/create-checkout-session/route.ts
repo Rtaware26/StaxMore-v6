@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-console.log('STRIPE_SECRET_KEY:', process.env.STRIPE_SECRET_KEY ? 'Loaded' : 'Not Loaded');
+// No longer need a global console.log here as initialization is moved to POST
+// console.log('STRIPE_SECRET_KEY:', process.env.STRIPE_SECRET_KEY ? 'Loaded' : 'Not Loaded');
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: '2024-04-10',
-});
+// Stripe initialization is moved inside the POST function for better error handling
+// const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+//   apiVersion: '2024-04-10',
+// });
 
 export async function POST(req: NextRequest) {
+  let stripe: Stripe;
+  try {
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    if (!stripeSecretKey) {
+      console.error('STRIPE_SECRET_KEY is not set. Cannot create Stripe checkout session.');
+      return NextResponse.json({ message: 'Server configuration error: Stripe key not set.' }, { status: 500 });
+    }
+    stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2024-04-10',
+    });
+  } catch (initError: any) {
+    console.error('Failed to initialize Stripe:', initError);
+    return NextResponse.json({ message: 'Server configuration error: Failed to initialize Stripe.' }, { status: 500 });
+  }
+
   try {
     const { userId, leagueId } = await req.json();
 
@@ -41,10 +58,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: `Stripe price ID not configured for ${leagueId} league.` }, { status: 500 });
     }
 
-    console.log('NEXT_PUBLIC_SITE_URL in API route:', process.env.NEXT_PUBLIC_SITE_URL);
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    console.log('NEXT_PUBLIC_SITE_URL in API route:', siteUrl);
 
-    const successUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/success?league=${leagueId}&user=${userId}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/trade`; // Or a specific cancel page
+    const successUrl = `${siteUrl}/success?league=${leagueId}&user=${userId}&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${siteUrl}/trade`; // Or a specific cancel page
 
     console.log('Using priceId:', priceId);
     console.log('Generated successUrl:', successUrl);
