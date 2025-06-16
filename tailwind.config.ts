@@ -60,6 +60,14 @@ const config: Config = {
   				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
   				border: 'hsl(var(--sidebar-border))',
   				ring: 'hsl(var(--sidebar-ring))'
+  			},
+  			green: {
+  				500: 'hsl(var(--green-light))',
+  				600: 'hsl(var(--green-dark))',
+  			},
+  			blue: {
+  				600: 'hsl(var(--blue-light))',
+  				700: 'hsl(var(--blue-dark))',
   			}
   		},
   		borderRadius: {

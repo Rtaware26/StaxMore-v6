@@ -7,6 +7,12 @@ export interface League {
   options_enabled: boolean
   created_at: string
   updated_at: string
+  max_participants: number
+  competition_type: '1-day' | '5-day'
+  start_time_aest: string
+  end_time_aest: string
+  registration_open_aest: string
+  registration_close_aest: string
 }
 
 export interface EducationProgress {
@@ -85,6 +91,39 @@ export class LeagueService {
 
   // Mock league data for fallback
   private static getMockLeague(leagueId: string): League {
+    // Helper to get a date in AEST for consistent mock data generation
+    const getAESTDate = (date: Date, hours: number, minutes: number) => {
+      const zonedDate = new Date(date.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+      zonedDate.setHours(hours, minutes, 0, 0);
+      return zonedDate.toISOString();
+    };
+
+    const now = new Date();
+    // For consistent mock data, let's make sure our mock dates are always in the future relative to 'now'
+    // and align with the specified days of the week.
+    // This is a simplified mock for demonstration. In a real system, these would be dynamic.
+
+    // Calculate next Monday and Friday for consistent mock data
+    const nextMonday = new Date(now);
+    nextMonday.setDate(now.getDate() + (1 + 7 - now.getDay()) % 7);
+    if ((1 + 7 - now.getDay()) % 7 === 0 && now.getDay() === 1 && now.getHours() >= 7) {
+      nextMonday.setDate(nextMonday.getDate() + 7);
+    }
+
+    const nextFriday = new Date(now);
+    nextFriday.setDate(now.getDate() + (5 + 7 - now.getDay()) % 7);
+    if ((5 + 7 - now.getDay()) % 7 === 0 && now.getDay() === 5 && now.getHours() >= 7) {
+      nextFriday.setDate(nextFriday.getDate() + 7);
+    }
+
+    const oneDayCompStartTime = getAESTDate(nextFriday, 7, 0);
+    const oneDayCompEndTime = getAESTDate(new Date(nextFriday.getTime() + 24 * 60 * 60 * 1000), 7, 0); // 24 hours later (Saturday 7 AM AEST)
+    const oneDayRegCloseTime = getAESTDate(nextFriday, 6, 0); // 1 hour before start
+
+    const fiveDayCompStartTime = getAESTDate(nextMonday, 7, 0);
+    const fiveDayCompEndTime = getAESTDate(new Date(nextMonday.getTime() + 5 * 24 * 60 * 60 * 1000), 7, 0); // 5 days later (Saturday 7 AM AEST)
+    const fiveDayRegCloseTime = getAESTDate(nextMonday, 6, 0); // 1 hour before start
+
     const mockLeagues: Record<string, League> = {
       bronze: {
         league_id: "bronze",
@@ -93,6 +132,12 @@ export class LeagueService {
         options_enabled: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        max_participants: 100,
+        competition_type: '1-day',
+        start_time_aest: oneDayCompStartTime,
+        end_time_aest: oneDayCompEndTime,
+        registration_open_aest: getAESTDate(new Date(nextFriday.getTime() - 7 * 24 * 60 * 60 * 1000), 7, 0), // Opens 7 days before Friday 7 AM AEST for mock
+        registration_close_aest: oneDayRegCloseTime,
       },
       silver: {
         league_id: "silver",
@@ -101,6 +146,12 @@ export class LeagueService {
         options_enabled: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        max_participants: 100,
+        competition_type: '1-day',
+        start_time_aest: oneDayCompStartTime,
+        end_time_aest: oneDayCompEndTime,
+        registration_open_aest: getAESTDate(new Date(nextFriday.getTime() - 7 * 24 * 60 * 60 * 1000), 7, 0), // Opens 7 days before Friday 7 AM AEST for mock
+        registration_close_aest: oneDayRegCloseTime,
       },
       gold: {
         league_id: "gold",
@@ -109,6 +160,12 @@ export class LeagueService {
         options_enabled: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        max_participants: 100,
+        competition_type: '5-day',
+        start_time_aest: fiveDayCompStartTime,
+        end_time_aest: fiveDayCompEndTime,
+        registration_open_aest: getAESTDate(new Date(nextMonday.getTime() - 7 * 24 * 60 * 60 * 1000), 7, 0), // Opens 7 days before Monday 7 AM AEST for mock
+        registration_close_aest: fiveDayRegCloseTime,
       },
       diamond: {
         league_id: "diamond",
@@ -117,6 +174,12 @@ export class LeagueService {
         options_enabled: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        max_participants: 100,
+        competition_type: '5-day',
+        start_time_aest: fiveDayCompStartTime,
+        end_time_aest: fiveDayCompEndTime,
+        registration_open_aest: getAESTDate(new Date(nextMonday.getTime() - 7 * 24 * 60 * 60 * 1000), 7, 0), // Opens 7 days before Monday 7 AM AEST for mock
+        registration_close_aest: fiveDayRegCloseTime,
       },
     }
 

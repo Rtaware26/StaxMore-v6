@@ -6,10 +6,11 @@ import { supabase } from "@/lib/supabaseClient"
 import { syncUserToDB } from "@/lib/user-sync"
 
 // Define interface for the user profile fetched from the 'profiles' table
-interface UserProfile {
+export interface UserProfile {
   id: string;
   username: string | null;
   league: string | null; // Assuming league can be null if user hasn't joined yet
+  can_be_copied: boolean; // New field for copy trade opt-in
 }
 
 export function useUser() {

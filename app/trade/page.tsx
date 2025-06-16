@@ -34,6 +34,7 @@ import { AssetSelector } from "@/components/asset-selector"
 import { LeagueService, type League } from "@/lib/league-service"
 import { handleCheckout } from "@/lib/checkout-service"
 import { useLeagueAccess } from "@/hooks/useLeagueAccess"
+import { formatCurrencyAbbreviated } from "@/lib/utils"
 
 export default function TradePage() {
   const { user } = useAuth()
@@ -249,10 +250,6 @@ export default function TradePage() {
 
         if (portfolioDataUpdated) setPortfolio(portfolioDataUpdated)
         if (tradesDataUpdated) setTrades(tradesDataUpdated)
-      } else {
-        // Set initial data even if no valid prices or user not found
-        if (portfolioData) setPortfolio(portfolioData)
-        if (tradesData) setTrades(tradesData)
       }
 
       if (leagueData) setLeague(leagueData)
@@ -302,7 +299,7 @@ export default function TradePage() {
     return () => clearInterval(interval)
   }, [user, fetchPrices])
 
-  // Handle enhanced trade submission - Basic implementation assumed if removed
+  // Handle enhanced trade submission
   const handlePlaceTrade = useCallback(async () => {
     if (!user || !selectedSymbol || !quantity) return
 
@@ -347,6 +344,7 @@ export default function TradePage() {
         trade_reason: tradeReason || undefined,
         confidence_level: confidenceLevel[0],
         asset: selectedAsset, // Pass selectedAsset
+        expectedMarginRequired: marginRequired, // Pass the calculated marginRequired from frontend
       }
 
       console.log('Sending trade request to server:', tradeRequest);
@@ -388,9 +386,9 @@ export default function TradePage() {
     } finally {
       setTradeLoading(false)
     }
-  }, [user, selectedSymbol, positionType, quantity, orderType, limitPrice, stopLoss, takeProfit, leverage, strategyName, tradeReason, confidenceLevel, selectedAsset, prices, fetchPortfolio, fetchTrades]) // Added dependencies
+  }, [user, selectedSymbol, positionType, quantity, orderType, limitPrice, stopLoss, takeProfit, leverage, strategyName, tradeReason, confidenceLevel, selectedAsset, prices, fetchPortfolio, fetchTrades, marginRequired])
 
-  // Handle close trade - Basic implementation assumed if removed
+  // Handle close trade
   const handleCloseTrade = useCallback(async (tradeId: string, symbol: string) => {
     console.log("handleCloseTrade: called for", tradeId, symbol);
     try {
@@ -424,231 +422,145 @@ export default function TradePage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-slate-50 py-8">
+      <div className="min-h-screen bg-background py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-slate-900 mb-4">Professional Trading Platform</h1>
-            <p className="text-xl text-slate-600">Advanced trading with comprehensive risk management</p>
-          </div>
+          <h1 className="text-4xl font-bold text-foreground mb-8 text-center">Live Trading</h1>
 
-          {/* Enhanced Portfolio Overview */}
-          <div className="grid lg:grid-cols-6 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Equity</CardTitle>
-                <DollarSign className="h-4 w-4 text-slate-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${portfolio?.total_equity?.toLocaleString() || "100,000"}</div>
-                <p className="text-xs text-slate-600">
-                  {portfolio ? "Cash + Unrealized P&L" : "Initializing portfolio..."}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Available Cash</CardTitle>
-                <Target className="h-4 w-4 text-slate-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${portfolio?.cash_balance?.toLocaleString() || "100,000"}</div>
-                <p className="text-xs text-slate-600">Ready for trading</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Unrealized P&L</CardTitle>
-                <TrendingUp className="h-4 w-4 text-slate-600" />
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={`text-2xl font-bold ${(portfolio?.unrealized_pnl || 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                >
-                  {(portfolio?.unrealized_pnl || 0) >= 0 ? "+" : ""}${portfolio?.unrealized_pnl?.toFixed(2) || "0.00"}
+          {/* Financial Overview Cards */}
+          <div className="grid lg:grid-cols-6 md:grid-cols-3 sm:grid-cols-2 gap-4 mb-8">
+            <Card className="card-modern text-center p-3 flex flex-col items-center justify-center">
+              <CardTitle className="text-sm font-medium text-muted-foreground mb-1">Total Equity</CardTitle>
+              <CardContent className="p-0 text-center">
+                <div className="text-base font-bold text-foreground truncate min-w-0 text-center">
+                  {portfolio?.total_equity !== undefined && portfolio?.total_equity !== null
+                    ? `$${formatCurrencyAbbreviated(portfolio.total_equity)}`
+                    : '$0.00'}
                 </div>
-                <p className="text-xs text-slate-600">Open positions</p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Realized P&L</CardTitle>
-                <Activity className="h-4 w-4 text-slate-600" />
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={`text-2xl font-bold ${(portfolio?.realized_pnl || 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                >
-                  {(portfolio?.realized_pnl || 0) >= 0 ? "+" : ""}${portfolio?.realized_pnl?.toFixed(2) || "0.00"}
+            <Card className="card-modern text-center p-3 flex flex-col items-center justify-center">
+              <CardTitle className="text-sm font-medium text-muted-foreground mb-1">Available Cash</CardTitle>
+              <CardContent className="p-0 text-center">
+                <div className="text-base font-bold text-foreground truncate min-w-0 text-center">
+                  {portfolio?.cash_balance !== undefined && portfolio?.cash_balance !== null
+                    ? `$${formatCurrencyAbbreviated(portfolio.cash_balance)}`
+                    : '$0.00'}
                 </div>
-                <p className="text-xs text-slate-600">Closed trades</p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
-                <Trophy className="h-4 w-4 text-slate-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{portfolio?.win_rate?.toFixed(1) || "0.0"}%</div>
-                <p className="text-xs text-slate-600">
-                  {portfolio?.winning_trades || 0}W / {portfolio?.losing_trades || 0}L
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Risk Score</CardTitle>
-                <BarChart3 className="h-4 w-4 text-slate-600" />
-              </CardHeader>
-              <CardContent>
+            <Card className="card-modern text-center p-3 flex flex-col items-center justify-center">
+              <CardTitle className="text-sm font-medium text-muted-foreground mb-1">Unrealized P&L</CardTitle>
+              <CardContent className="p-0 text-center">
                 <div
-                  className={`text-2xl font-bold ${(portfolio?.risk_score || 0) > 50 ? "text-red-600" : "text-emerald-600"}`}
+                  className={`text-base font-bold truncate min-w-0 text-center ${
+                    (portfolio?.unrealized_pnl || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}
                 >
-                  {portfolio?.risk_score?.toFixed(1) || "0.0"}%
+                  {portfolio?.unrealized_pnl !== undefined && portfolio?.unrealized_pnl !== null
+                    ? `$${formatCurrencyAbbreviated(portfolio.unrealized_pnl)}`
+                    : '$0.00'}
                 </div>
-                <p className="text-xs text-slate-600">{portfolio?.position_count || 0} open positions</p>
+              </CardContent>
+            </Card>
+
+            <Card className="card-modern text-center p-3 flex flex-col items-center justify-center">
+              <CardTitle className="text-sm font-medium text-muted-foreground mb-1">Realized P&L</CardTitle>
+              <CardContent className="p-0 text-center">
+                <div
+                  className={`text-base font-bold truncate min-w-0 text-center ${
+                    (portfolio?.realized_pnl || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}
+                >
+                  {portfolio?.realized_pnl !== undefined && portfolio?.realized_pnl !== null
+                    ? `$${formatCurrencyAbbreviated(portfolio.realized_pnl)}`
+                    : '$0.00'}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="card-modern text-center p-3 flex flex-col items-center justify-center">
+              <CardTitle className="text-sm font-medium text-muted-foreground mb-1">Win Rate</CardTitle>
+              <CardContent className="p-0 text-center">
+                <div className="text-base font-bold text-foreground truncate min-w-0 text-center">
+                  {(portfolio?.win_rate || 0).toFixed(2)}%
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="card-modern text-center p-3 flex flex-col items-center justify-center">
+              <CardTitle className="text-sm font-medium text-muted-foreground mb-1">Risk Score</CardTitle>
+              <CardContent className="p-0 text-center">
+                <div className="text-base font-bold text-foreground truncate min-w-0 text-center">
+                  {(portfolio?.risk_score || 0).toFixed(2)}
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-8">
-            {/* Enhanced Trading Form */}
-            <div className="lg:col-span-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Advanced Trading</CardTitle>
-                  <CardDescription>Professional trading with risk management</CardDescription>
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Trading Form Card */}
+            <Card className="card-modern p-6">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-2xl font-bold text-foreground">Place New Trade</CardTitle>
+                <CardDescription className="text-muted-foreground">Execute market or limit orders</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Symbol Selection */}
+              <CardContent className="space-y-6">
+                <Tabs defaultValue="market" className="w-full" onValueChange={(value) => setOrderType(value as "market" | "limit")}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="market">Market Order</TabsTrigger>
+                    <TabsTrigger value="limit">Limit Order</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                <div className="space-y-4">
                   <div>
-                    <Label htmlFor="symbol">Trading Asset</Label>
+                    <Label htmlFor="symbol-selector" className="block text-sm font-medium text-muted-foreground mb-2">Symbol</Label>
                     <AssetSelector
-                      selectedSymbol={selectedSymbol}
                       onSymbolChange={(symbol, asset) => {
                         setSelectedSymbol(symbol)
                         setSelectedAsset(asset)
                       }}
+                      selectedSymbol={selectedSymbol}
                     />
                   </div>
 
-                  {/* Market Data Display */}
-                  {selectedSymbol && (
-                    <div className="p-3 bg-slate-50 rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium">{selectedSymbol}</span>
-                        <div className="text-right">
-                          {hasPriceError ? (
-                            <div className="flex items-center text-amber-600">
-                              <AlertCircle className="h-4 w-4 mr-1" />
-                              <span>—</span>
-                            </div>
-                          ) : selectedPrice ? (
-                            <>
-                              <div className="font-bold">${selectedPrice.price.toFixed(4)}</div>
-                              <div
-                                className={`text-sm ${selectedPrice.change >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                              >
-                                {selectedPrice.change >= 0 ? "+" : ""}
-                                {selectedPrice.change.toFixed(4)} ({selectedPrice.changePercent.toFixed(2)}%)
-                              </div>
-                            </>
-                          ) : (
-                            <div className="text-xs text-slate-500">Select an asset</div>
-                          )}
-                        </div>
-                      </div>
-                      {selectedPrice && !hasPriceError && (
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>Bid: ${selectedPrice.bid.toFixed(4)}</div>
-                          <div>Ask: ${selectedPrice.ask.toFixed(4)}</div>
-                          <div className="col-span-2">Spread: ${selectedPrice.spread.toFixed(4)}</div>
-                        </div>
-                      )}
-                      {hasPriceError && (
-                        <div className="text-xs text-amber-600">
-                          Price data temporarily unavailable. Please try again later.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Order Type */}
+                  <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Order Type</Label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      <Button
-                        variant={orderType === "market" ? "default" : "outline"}
-                        onClick={() => setOrderType("market")}
-                        className="w-full"
-                      >
-                        <Zap className="h-4 w-4 mr-1" />
-                        Market
-                      </Button>
-                      <Button
-                        variant={orderType === "limit" ? "default" : "outline"}
-                        onClick={() => setOrderType("limit")}
-                        className="w-full"
-                      >
-                        <Target className="h-4 w-4 mr-1" />
-                        Limit
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Position Type */}
-                  <div>
-                    <Label>Position Type</Label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      <Button
-                        variant={positionType === "long" ? "default" : "outline"}
-                        onClick={() => setPositionType("long")}
-                        className="w-full"
-                      >
-                        <ArrowUpRight className="h-4 w-4 mr-1" />
-                        Long (Buy)
-                      </Button>
-                      <Button
-                        variant={positionType === "short" ? "default" : "outline"}
-                        onClick={() => setPositionType("short")}
-                        className="w-full"
-                      >
-                        <ArrowDownRight className="h-4 w-4 mr-1" />
-                        Short (Sell)
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Quantity */}
-                  <div>
-                    <Label htmlFor="quantity">Quantity</Label>
+                      <Label htmlFor="quantity" className="block text-sm font-medium text-muted-foreground mb-2">Quantity (Lots)</Label>
                     <Input
                       id="quantity"
                       type="number"
                       step="0.01"
-                      placeholder="Enter quantity"
+                        placeholder="e.g. 0.1, 1, 10"
                       value={quantity}
                       onChange={(e) => setQuantity(e.target.value)}
+                        className="w-full"
                     />
+                    </div>
+                    <div>
+                      <Label htmlFor="position-type" className="block text-sm font-medium text-muted-foreground mb-2">Position Type</Label>
+                      <Tabs defaultValue="long" className="w-full" onValueChange={(value) => setPositionType(value as "long" | "short")}>
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="long">Long</TabsTrigger>
+                          <TabsTrigger value="short">Short</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
                   </div>
 
-                  {/* Limit Price (if limit order) */}
                   {orderType === "limit" && (
                     <div>
-                      <Label htmlFor="limitPrice">Limit Price</Label>
+                      <Label htmlFor="limit-price" className="block text-sm font-medium text-muted-foreground mb-2">Limit Price</Label>
                       <Input
-                        id="limitPrice"
+                        id="limit-price"
                         type="number"
                         step="0.0001"
                         placeholder="Enter limit price"
                         value={limitPrice}
                         onChange={(e) => setLimitPrice(e.target.value)}
+                        className="w-full"
                       />
                     </div>
                   )}
@@ -657,7 +569,7 @@ export default function TradePage() {
                   {(orderType === "market" || orderType === "limit") && (
                     <>
                       <div className="space-y-2">
-                        <Label>Leverage: {leverage[0]}×</Label>
+                        <Label className="block text-sm font-medium text-muted-foreground">Leverage: {leverage[0]}×</Label>
                         <Slider
                           value={leverage}
                           onValueChange={setLeverage}
@@ -666,7 +578,7 @@ export default function TradePage() {
                           step={10}
                           className="mt-2"
                         />
-                        <div className="flex justify-between text-xs text-slate-600">
+                        <div className="flex justify-between text-xs text-muted-foreground">
                           <span>10×</span>
                           <span>500×</span>
                           <span>1000×</span>
@@ -676,7 +588,7 @@ export default function TradePage() {
                       {/* Stop Loss & Take Profit */}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label htmlFor="stopLoss">Stop Loss</Label>
+                          <Label htmlFor="stopLoss" className="block text-sm font-medium text-muted-foreground mb-2">Stop Loss</Label>
                           <Input
                             id="stopLoss"
                             type="number"
@@ -687,7 +599,7 @@ export default function TradePage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="takeProfit">Take Profit</Label>
+                          <Label htmlFor="takeProfit" className="block text-sm font-medium text-muted-foreground mb-2">Take Profit</Label>
                           <Input
                             id="takeProfit"
                             type="number"
@@ -699,33 +611,28 @@ export default function TradePage() {
                         </div>
                       </div>
 
-                      {/* Strategy Name */}
+                      {/* Strategy and Reason */}
                       <div>
-                        <Label htmlFor="strategy">Strategy</Label>
+                        <Label htmlFor="strategyName" className="block text-sm font-medium text-muted-foreground mb-2">Strategy Name</Label>
                         <Input
-                          id="strategy"
-                          placeholder="e.g., Breakout, Mean Reversion, Scalping"
+                          id="strategyName"
+                          type="text"
+                          placeholder="e.g. Scalping, Day Trade, Swing"
                           value={strategyName}
                           onChange={(e) => setStrategyName(e.target.value)}
                         />
                       </div>
-
-                      {/* Trade Reason */}
                       <div>
-                        <Label htmlFor="reason">Trade Reason</Label>
+                        <Label htmlFor="tradeReason" className="block text-sm font-medium text-muted-foreground mb-2">Trade Reason</Label>
                         <Textarea
-                          id="reason"
-                          placeholder="Why are you taking this trade? Technical analysis, news, etc."
+                          id="tradeReason"
+                          placeholder="Why are you taking this trade?"
                           value={tradeReason}
                           onChange={(e) => setTradeReason(e.target.value)}
-                          rows={3}
-                          className="resize-none"
                         />
                       </div>
-
-                      {/* Confidence Level Slider */}
                       <div className="space-y-2">
-                        <Label>Confidence Level: {confidenceLevel[0]}/10</Label>
+                        <Label className="block text-sm font-medium text-muted-foreground">Confidence Level: {confidenceLevel[0]}/10</Label>
                         <Slider
                           value={confidenceLevel}
                           onValueChange={setConfidenceLevel}
@@ -734,10 +641,9 @@ export default function TradePage() {
                           step={1}
                           className="mt-2"
                         />
-                        <div className="flex justify-between text-xs text-slate-600">
-                          <span>Low (1)</span>
-                          <span>Medium (5)</span>
-                          <span>High (10)</span>
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Low</span>
+                          <span>High</span>
                         </div>
                       </div>
                     </>
@@ -755,54 +661,35 @@ export default function TradePage() {
 
                   {/* Trade Summary */}
                   {selectedPrice && !hasPriceError && tradeValue > 0 && (
-                    <div className="p-4 bg-blue-50 rounded-lg space-y-2">
-                      <div className="text-sm font-medium text-blue-900">Trade Summary</div>
-                      <div className="text-sm text-blue-800 space-y-1">
-                        <div className="flex justify-between">
-                          <span>Position Value:</span>
-                          <span className="font-medium">${tradeValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <div className="p-4 bg-accent text-accent-foreground rounded-lg space-y-2">
+                      <div className="text-sm font-medium">Trade Summary</div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>Symbol: <span className="font-semibold">{selectedSymbol}</span></div>
+                        <div>Current Price: <span className="font-semibold">{selectedPrice.price.toFixed(5)}</span></div>
+                        <div>Quantity: <span className="font-semibold">{quantity} {selectedAsset?.asset_class === "forex" ? 'Lots' : 'Units'}</span></div>
+                        <div>Position Type: <span className="font-semibold">{positionType.toUpperCase()}</span></div>
+                        <div>Trade Value: <span className="font-semibold">${tradeValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                        <div>Margin Required: <span className="font-semibold">${marginRequired.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                        <div>Commission: <span className="font-semibold">${commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                        {pipValue > 0 && <div>Pip Value: <span className="font-semibold">${pipValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>}
                         </div>
-                        <div className="flex justify-between">
-                          <span>Margin Required:</span>
-                          <span className="font-medium">${marginRequired.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Commission:</span>
-                          <span className="font-medium">${commission.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Available Balance:</span>
-                          <span className="font-medium">${portfolio?.cash_balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0"}</span>
-                        </div>
-                        {leverage[0] > 1 && (
-                          <div className="flex justify-between">
-                            <span>Leverage:</span>
-                            <span className="font-medium">{leverage[0]}x</span>
                           </div>
                         )}
-                        {selectedAsset?.asset_class === "forex" && pipValue > 0 && (
-                          <>
-                            <div className="flex justify-between">
-                              <span>Lot Size:</span>
-                              <span className="font-medium">{selectedAsset.lot_size?.toLocaleString()}</span>
+
+                  {hasPriceError && (
+                    <div className="flex items-center p-4 rounded-lg bg-destructive/10 text-destructive text-sm font-medium">
+                      <AlertCircle className="h-5 w-5 mr-2" />
+                      Price data not available for {selectedSymbol}.
                             </div>
-                            <div className="flex justify-between">
-                              <span>Pip Value:</span>
-                              <span className="font-medium">${pipValue.toFixed(4)}</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      {marginRequired + commission > (portfolio?.cash_balance || 0) && (
-                        <div className="flex items-center text-red-600 text-sm mt-2">
-                          <AlertTriangle className="h-4 w-4 mr-1" />
-                          Insufficient balance for this trade
-                        </div>
-                      )}
+                  )}
+
+                  {portfolio && marginRequired + commission > portfolio.cash_balance && (
+                    <div className="flex items-center p-4 rounded-lg bg-destructive/10 text-destructive text-sm font-medium">
+                      <AlertTriangle className="h-5 w-5 mr-2" />
+                      Insufficient balance to place this trade. Required: ${marginRequired.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Margin) + ${commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Commission)
                     </div>
                   )}
 
-                  {/* Place Trade Button */}
                   <Button
                     onClick={handlePlaceTrade}
                     disabled={
@@ -821,286 +708,64 @@ export default function TradePage() {
                         <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                         Placing Trade...
                       </>
-                    ) : hasPriceError ? (
-                      "Price Unavailable"
                     ) : (
-                      `Place ${positionType === "long" ? "Buy" : "Sell"} Order`
+                      "Place Trade"
                     )}
                   </Button>
+                </div>
                 </CardContent>
               </Card>
-            </div>
 
-            {/* Enhanced Market Data & Positions */}
-            <div className="lg:col-span-2">
-              <Tabs defaultValue="positions" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="positions">Open Positions</TabsTrigger>
-                  <TabsTrigger value="market">Market Data</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="positions">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <span>Open Positions</span>
-                        <Badge variant="outline">{trades.length} positions</Badge>
-                      </CardTitle>
+            {/* Open Positions Card */}
+            <Card className="card-modern p-6">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-2xl font-bold text-foreground">Open Positions</CardTitle>
+                <CardDescription className="text-muted-foreground">Manage your active trades</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {trades.length === 0 ? (
-                        <div className="text-center py-8 text-slate-600">
-                          No open positions. Place your first trade!
+                {trades.filter(trade => !trade.is_closed).length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Activity className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <p>No open positions yet. Place a trade to get started!</p>
                         </div>
                       ) : (
-                        <div className="space-y-3">
-                          {trades.map((trade) => {
-                            const currentPrice =
-                              prices.find((p) => p.symbol === trade.symbol)?.price || trade.current_price
-                            const unrealizedPnL = TradingService.calculateUnrealizedPnL(trade, currentPrice)
-                            const hasError = priceErrors[trade.symbol] === true
+                  <div className="space-y-4">
+                    {trades.filter(trade => !trade.is_closed).map((trade) => {
+                      const currentPrice = prices.find(p => p.symbol === trade.symbol)?.price || trade.current_price || trade.entry_price;
+                      const pnl = (currentPrice - trade.entry_price) * trade.quantity * (trade.position_type === 'long' ? 1 : -1);
+                      const pnlClass = pnl >= 0 ? 'text-green-600' : 'text-red-600';
 
                             return (
-                              <div key={trade.id} className="border rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center space-x-2">
-                                    <span className="font-semibold">{trade.symbol}</span>
-                                    <Badge
-                                      className={`${
-                                        trade.position_type === "long"
-                                          ? "bg-emerald-100 text-emerald-800"
-                                          : "bg-red-100 text-red-800"
-                                      }`}
-                                    >
-                                      {trade.position_type.toUpperCase()}
-                                    </Badge>
-                                    {trade.leverage > 1 && <Badge variant="outline">{trade.leverage}x</Badge>}
+                        <Card key={trade.id} className="border border-border p-4 bg-card shadow-sm">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                            <div className="font-medium text-muted-foreground">Symbol: <span className="font-semibold text-foreground">{trade.symbol}</span></div>
+                            <div className="font-medium text-muted-foreground">Type: <span className={`font-semibold ${trade.position_type === 'long' ? 'text-green-600' : 'text-red-600'}`}>{trade.position_type.toUpperCase()}</span></div>
+                            <div className="font-medium text-muted-foreground">Quantity: <span className="font-semibold text-foreground">{trade.quantity.toFixed(2)}</span></div>
+                            <div className="font-medium text-muted-foreground">Entry Price: <span className="font-semibold text-foreground">{trade.entry_price.toFixed(trade.symbol.includes("=X") ? 4 : 2)}</span></div>
+                            <div className="font-medium text-muted-foreground">Current Price: <span className="font-semibold text-foreground">{currentPrice.toFixed(trade.symbol.includes("=X") ? 4 : 2) || 'N/A'}</span></div>
+                            <div className="font-medium text-muted-foreground">P&L: <span className={`font-semibold ${pnlClass}`}>${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                            <div className="font-medium text-muted-foreground">Margin: <span className="font-semibold text-foreground">${trade.margin_used.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                            <div className="font-medium text-muted-foreground">Leverage: <span className="font-semibold text-foreground">{trade.leverage}x</span></div>
+                            {trade.stop_loss && <div className="font-medium text-muted-foreground">SL: <span className="font-semibold text-foreground">{trade.stop_loss.toFixed(trade.symbol.includes("=X") ? 4 : 2)}</span></div>}
+                            {trade.take_profit && <div className="font-medium text-muted-foreground">TP: <span className="font-semibold text-foreground">{trade.take_profit.toFixed(trade.symbol.includes("=X") ? 4 : 2)}</span></div>}
+                            <div className="font-medium text-muted-foreground">Opened: <span className="font-semibold text-foreground">{new Date(trade.created_at).toLocaleString()}</span></div>
                                   </div>
-                                  <div className="text-right">
-                                    {hasError ? (
-                                      <div className="flex items-center text-amber-600">
-                                        <AlertCircle className="h-4 w-4 mr-1" />
-                                        <span>—</span>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        <div
-                                          className={`font-semibold ${unrealizedPnL >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                                        >
-                                          {unrealizedPnL >= 0 ? "+" : ""}${unrealizedPnL.toFixed(2)}
-                                        </div>
-                                        <div className="text-sm text-slate-600">
-                                          {((unrealizedPnL / trade.position_size_usd) * 100).toFixed(2)}%
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4 text-sm text-slate-600 mb-3">
-                                  <div>
-                                    <div>Quantity: {trade.quantity}</div>
-                                    <div>Entry: ${trade.entry_price.toFixed(4)}</div>
-                                    <div>Current: {hasError ? "—" : `$${currentPrice.toFixed(4)}`}</div>
-                                  </div>
-                                  <div>
-                                    <div>Size: ${trade.position_size_usd.toLocaleString()}</div>
-                                    <div>Margin: ${trade.margin_used.toLocaleString()}</div>
-                                    {trade.strategy_name && <div>Strategy: {trade.strategy_name}</div>}
-                                  </div>
-                                </div>
-
-                                {/* Risk Management Levels */}
-                                {(trade.stop_loss || trade.take_profit) && (
-                                  <div className="grid grid-cols-2 gap-4 text-xs text-slate-500 mb-3">
-                                    {trade.stop_loss && (
-                                      <div className="flex items-center">
-                                        <AlertTriangle className="h-3 w-3 mr-1 text-red-500" />
-                                        SL: ${trade.stop_loss.toFixed(4)}
-                                      </div>
-                                    )}
-                                    {trade.take_profit && (
-                                      <div className="flex items-center">
-                                        <Target className="h-3 w-3 mr-1 text-emerald-500" />
-                                        TP: ${trade.take_profit.toFixed(4)}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* Trade Metadata */}
-                                <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
-                                  <div className="flex items-center space-x-4">
-                                    <div className="flex items-center">
-                                      <Clock className="h-3 w-3 mr-1" />
-                                      {new Date(trade.created_at).toLocaleDateString()}
-                                    </div>
-                                    {trade.confidence_level && <div>Confidence: {trade.confidence_level}/10</div>}
-                                  </div>
-                                  <div>Session: {trade.trade_session.slice(-6)}</div>
-                                </div>
-
-                                {/* Trade Reason */}
-                                {trade.trade_reason && (
-                                  <div className="text-xs text-slate-600 mb-3 p-2 bg-slate-50 rounded">
-                                    <strong>Reason:</strong> {trade.trade_reason}
-                                  </div>
-                                )}
-
                                 <Button
-                                  size="sm"
-                                  variant="outline"
                                   onClick={() => handleCloseTrade(trade.id, trade.symbol)}
-                                  className="w-full"
-                                  disabled={hasError}
+                            className="mt-4 w-full"
+                            variant="secondary"
+                            size="sm"
                                 >
-                                  <X className="h-4 w-4 mr-1" />
-                                  Close Position
+                            Close Trade
                                 </Button>
-                              </div>
+                        </Card>
                             )
                           })}
                         </div>
                       )}
                     </CardContent>
                   </Card>
-                </TabsContent>
-
-                <TabsContent value="market">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <span>Live Market Data</span>
-                        <Button size="sm" variant="outline" onClick={fetchPrices} disabled={priceLoading}>
-                          <RefreshCw className={`h-4 w-4 mr-2 ${priceLoading ? "animate-spin" : ""}`} />
-                          Refresh
-                        </Button>
-                      </CardTitle>
-                      <CardDescription>Prices update every 10 seconds from Twelve Data</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {assets.map((asset) => {
-                          const price = prices.find((p) => p.symbol === asset.symbol)
-                          const hasError = priceErrors[asset.symbol] === true
-
-                          return (
-                            <div
-                              key={asset.symbol}
-                              className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 cursor-pointer"
-                              onClick={() => setSelectedSymbol(asset.symbol)}
-                            >
-                              <div>
-                                <div className="font-semibold">{asset.symbol}</div>
-                                <div className="text-xs text-slate-500">
-                                  {asset.name} • {asset.asset_class}
                                 </div>
-                              </div>
-                              <div className="text-right">
-                                {hasError ? (
-                                  <div className="flex items-center text-amber-600">
-                                    <AlertCircle className="h-4 w-4 mr-1" />
-                                    <span>—</span>
-                                  </div>
-                                ) : price ? (
-                                  <>
-                                    <div className="font-semibold">${price.price.toFixed(4)}</div>
-                                    <div
-                                      className={`text-sm flex items-center ${
-                                        price.change >= 0 ? "text-emerald-600" : "text-red-600"
-                                      }`}
-                                    >
-                                      {price.change >= 0 ? (
-                                        <ArrowUpRight className="h-3 w-3 mr-1" />
-                                      ) : (
-                                        <ArrowDownRight className="h-3 w-3 mr-1" />
-                                      )}
-                                      {price.change >= 0 ? "+" : ""}
-                                      {price.change.toFixed(4)} ({price.changePercent.toFixed(2)}%)
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="text-xs text-slate-500">No data</div>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </div>
-          </div>
-
-          {/* Trading Statistics */}
-          <div className="grid lg:grid-cols-4 gap-6 mt-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Performance</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Total Trades:</span>
-                  <span className="font-semibold">{portfolio?.total_trades || 0}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Largest Win:</span>
-                  <span className="font-semibold text-emerald-600">
-                    ${portfolio?.largest_win?.toFixed(2) || "0.00"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Largest Loss:</span>
-                  <span className="font-semibold text-red-600">${portfolio?.largest_loss?.toFixed(2) || "0.00"}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Competition</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">League:</span>
-                  <Badge className="capitalize">{portfolio?.league_id || "Not Joined"}</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Rank:</span>
-                  <span className="font-semibold">#{portfolio?.competition_rank || "N/A"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Score:</span>
-                  <span className="font-semibold">{portfolio?.competition_score?.toFixed(0) || "0"}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Percentage Return Box */}
-            <Card>
-              <CardHeader>
-              <CardTitle className="text-lg font-semibold">Percentage Return</CardTitle>
-              </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${percentageReturn !== null && percentageReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {percentageReturn !== null ? `$${percentageReturn.toFixed(2)}%` : '--%'}
-                </div>
-              <CardDescription>Calculated based on Total Equity / Opening Balance (100,000)</CardDescription>
-              </CardContent>
-            </Card>
-
-          {/* Portfolio Summary */}
-            <Card>
-              <CardHeader>
-              <CardTitle className="text-lg font-semibold">Portfolio Summary</CardTitle>
-              </CardHeader>
-            <CardContent>
-              {/* Existing portfolio summary content */}
-              </CardContent>
-            </Card>
         </div>
       </div>
     </ProtectedRoute>

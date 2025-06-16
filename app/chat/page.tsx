@@ -35,6 +35,43 @@ export default function ChatPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<DMThreadParticipant[]>([]);
 
+  // Add a simple keyframe animation for a subtle background effect
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes gradient-xy {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      .animate-gradient-xy {
+        background-size: 400% 400%;
+        animation: gradient-xy 15s ease infinite;
+      }
+      @keyframes pulse-online {
+        0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+      }
+      .animate-pulse-online {
+        animation: pulse-online 2s infinite;
+      }
+      .fade-in-message {
+        animation: fade-in 0.5s ease-out;
+      }
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      // Clean up the style tag when the component unmounts
+      style.remove();
+    };
+  }, []);
+
   // --- Online Status State ---
   const [userStatuses, setUserStatuses] = useState<Record<string, UserStatus>>({});
   const [currentUserStatus, setCurrentUserStatus] = useState<'online' | 'offline' | 'away'>('online');
@@ -250,326 +287,384 @@ export default function ChatPage() {
     if (loading || !user || !messageInput.trim()) return; // Keep basic checks
 
     try {
-      if (currentView === 'league' && userProfile?.league) { // Check for league view and userProfile.league
+      if (currentView === 'league') {
+        if (!userProfile?.league) {
+          console.error("Cannot send league message: user not in a league.");
+          return;
+        }
+        if (!userProfile?.username) {
+          console.error("Cannot send league message: user username not found.");
+          return;
+        }
         console.log("ChatPage: Attempting to send league message to league:", userProfile.league);
         // sendLeagueMessage now gets sender_id internally from auth
-        await ChatService.sendLeagueMessage(userProfile.league, messageInput, userProfile?.username || user.email || 'Anonymous'); // Pass userProfile.league and username
-        console.log("ChatPage: League message sent.");
-        setMessageInput(''); // Clear input after sending
-      } else if (currentView === 'dm' && selectedDMUserId) { // Check for DM view and selectedDMUserId
-        console.log("ChatPage: Attempting to send DM message...");
-        await ChatService.sendDirectMessage(user.id, selectedDMUserId, messageInput);
-        console.log("ChatPage: DM message sent.");
-        setMessageInput('');
+        const newMessage = await ChatService.sendLeagueMessage(
+          userProfile.league,
+          messageInput,
+          userProfile.username
+        );
+        if (newMessage) {
+          setLeagueMessages((prev) => [...prev, newMessage]);
+          setMessageInput('');
+        }
+      } else if (currentView === 'dm' && selectedDMUserId) {
+        console.log("ChatPage: Attempting to send DM to user:", selectedDMUserId);
+        const newMessage = await ChatService.sendDirectMessage(
+          user.id,
+          selectedDMUserId,
+          messageInput
+        );
+        if (newMessage) {
+          setDirectMessages((prev) => [...prev, newMessage]);
+          setMessageInput('');
+          // Optionally refresh DM threads to update last message
+          const updatedDMThreads = await ChatService.getDMThreads(user.id);
+          setDmThreads(updatedDMThreads);
+        }
       }
     } catch (error) {
       console.error('ChatPage: Error sending message:', error);
-      // Optionally show an alert to the user
-      alert('Failed to send message.');
     }
   };
 
-  // Handle user search for DMs
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      if (searchTerm.length >= 3) {
-        const results: DMThreadParticipant[] = await ChatService.searchUsersByUsername(searchTerm);
-        // Filter out the current user from search results
-        setSearchResults(results.filter((result) => user?.id !== result.id));
-      } else {
-        setSearchResults([]);
-      }
-    }, 300); // 300ms debounce
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, user?.id]);
-
+  // Handle selecting a user for Direct Message
   const handleSelectUserForDM = (userId: string) => {
-      setSelectedDMUserId(userId);
-      setCurrentView('dm');
-      setIsUserSearchOpen(false); // Close search dialog
-      setSearchTerm(''); // Clear search term
-      setSearchResults([]); // Clear search results
+    setSelectedDMUserId(userId);
+    setCurrentView('dm');
+    setIsUserSearchOpen(false); // Close search dialog after selecting user
+    setSearchTerm(''); // Clear search term
+    setSearchResults([]); // Clear search results
   };
 
-  // Check overall page loading state
-  const pageLoading = loading; // Page loading is just auth/profile loading now
+  // Handle user search
+  useEffect(() => {
+    if (searchTerm.length >= 3) {
+      const search = async () => {
+        const results = await ChatService.searchUsersByUsername(searchTerm);
+        setSearchResults(results.filter(u => u.id !== user?.id)); // Filter out current user
+      };
+      const handler = setTimeout(() => {
+        search();
+      }, 300); // Debounce search
 
-  // Handle access denied based on userProfile.league
-  const hasLeagueMembership = !!userProfile?.league; // Check if league exists on profile
-  // Show access denied if not loading, user exists, but userProfile.league is null or empty
-  const showAccessDenied = !pageLoading && user && !hasLeagueMembership; // Updated access check
+      return () => {
+        clearTimeout(handler);
+      };
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchTerm, user?.id]);
 
-  if (pageLoading) {
+  // Combine loading states
+  const pageLoading = loading; // Assuming useAuth loading covers initial auth/profile loading
+  const hasLeagueMembership = userProfile?.league !== null; // Check if user is in a league
+
+  // Conditional rendering based on loading and user/profile status
+  if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Loading chat...</p>
-      </div>
-    );
-  }
-
-  if (user && !hasLeagueMembership && !loading) { // Ensure not loading before showing this
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 py-8">
-        <div className="max-w-md w-full space-y-6 text-center bg-white p-8 rounded-xl shadow-2xl">
-          <h2 className="text-2xl font-bold text-slate-900">No League Membership</h2>
-          <p className="text-slate-600">You need to join a competition league to access the chat.</p>
-          <Button asChild>
-            <a href="/competitions">Explore Leagues</a>
-          </Button>
+      <div className="min-h-screen bg-background flex items-center justify-center text-center">
+        <div className="p-8 bg-card rounded-lg shadow-lg border border-border">
+          <h2 className="text-2xl font-bold text-foreground mb-4">Loading or Authentication Required</h2>
+          <p className="text-muted-foreground mb-6">{loading ? "Loading chat..." : "Please log in to access the chat."}</p>
+          {!loading && <Button onClick={() => window.location.href = '/login'}>Go to Login</Button>}
         </div>
       </div>
     );
   }
 
-  if (!user && !loading) { // Ensure not loading before showing login message
+  // Ensure userProfile?.league is available after loading is complete and user is logged in
+  if (!userProfile?.league) {
     return (
-       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 py-8">
-        <div className="max-w-md w-full space-y-6 text-center bg-white p-8 rounded-xl shadow-2xl">
-          <h2 className="text-2xl font-bold text-slate-900">Authentication Required</h2>
-          <p className="text-slate-600">Please log in to access the chat.</p>
-          {/* Add a login button if needed */}
+      <div className="min-h-screen bg-background flex items-center justify-center text-center">
+        <div className="p-8 bg-card rounded-lg shadow-lg border border-border">
+          <h2 className="text-2xl font-bold text-foreground mb-4">Access Denied</h2>
+          <p className="text-muted-foreground mb-6">You must be a member of a league to access the chat. Please join a league to participate in discussions.</p>
+          <Button onClick={() => window.location.href = '/competitions'}>Join a League</Button>
         </div>
       </div>
     );
   }
-
-  if (showAccessDenied) { // Use the derived showAccessDenied state
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 py-8">
-        <div className="max-w-md w-full space-y-6 text-center bg-white p-8 rounded-xl shadow-2xl">
-          <h2 className="text-2xl font-bold text-slate-900">Membership Required</h2>
-          <p className="text-slate-600">You need to join a competition league to access the chat.</p>
-          <Button asChild>
-            <a href="/competitions">Explore Leagues</a>
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Render the chat UI if user is logged in and has a league membership
-  // Only render if user and userProfile?.league exist after loading
-  if (!user || !userProfile?.league) return null; // Add a final check before rendering UI
 
   return (
     <ProtectedRoute>
-      <div className="flex h-[calc(100vh-4rem)] bg-slate-100">
-        {/* Sidebar */}
-        <div className="w-80 bg-white border-r border-slate-200 flex flex-col">
-          <div className="p-4 border-b border-slate-200">
-            <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as 'league' | 'dm')}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="league">League Chat</TabsTrigger>
-                <TabsTrigger value="dm">Direct Messages</TabsTrigger>
-              </TabsList>
-            </Tabs>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto p-4 h-[calc(100vh-4rem)] relative overflow-hidden rounded-lg shadow-xl">
+          {/* Animated Background Placeholder */}
+          <div className="absolute inset-0 z-0 opacity-20">
+            {/* Replace with actual animated background components (e.g., particles, gradient waves) */}
+            <div className="h-full w-full bg-gradient-to-br from-primary/10 to-accent/10 animate-gradient-xy"></div>
           </div>
 
-          {/* Sidebar Content - League or DM List */}
-          <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as 'league' | 'dm')} className="flex-grow flex flex-col">
-             <TabsContent value="league" className="m-0 flex-grow flex flex-col">
-                <ScrollArea className="flex-grow">
-                  {/* Display the user's single league */}
-                   {userProfile?.league && (
-                    <div className="p-4">
-                      <h3 className="text-lg font-medium mb-2">Your League: {userProfile.league.charAt(0).toUpperCase() + userProfile.league.slice(1)}</h3>
-                      {/* Optional: Add a link or info related to their league */}
-                    </div>
-                   )}
-                </ScrollArea>
-             </TabsContent>
-             <TabsContent value="dm" className="m-0 flex-grow flex flex-col">
-                <ScrollArea className="flex-grow">
-                  {/* DM Threads List */}
-                  {dmThreads.length === 0 ? (
-                    <div className="p-4 text-slate-600 text-center">No direct messages yet. Start a new conversation!</div>
-                  ) : (
-                    dmThreads.map(thread => (
-                      <div
-                        key={thread.chat_id}
-                        className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-100 ${
-                          selectedDMUserId === thread.participants.find(p => p.id !== user?.id)?.id ? 'bg-slate-200' : ''
-                        }`}
-                        onClick={() => setSelectedDMUserId(thread.participants.find(p => p.id !== user?.id)?.id || null)}
-                      >
-                        <Avatar>
-                          <AvatarImage src={thread.participants.find(p => p.id !== user?.id)?.avatar_url || undefined} />
-                          <AvatarFallback>{thread.participants.find(p => p.id !== user?.id)?.username?.[0] || 'U'}</AvatarFallback>
+          <div className="grid grid-cols-12 gap-4 h-full relative z-10">
+            {/* Left Sidebar - DM Threads */}
+            <div className="col-span-3 bg-card/80 backdrop-blur-lg rounded-lg border border-border shadow-lg flex flex-col">
+              <div className="p-4 border-b border-border">
+                <h2 className="text-xl font-bold text-foreground mb-4">Direct Messages</h2>
+                <Button
+                  variant="outline"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-[1.02]"
+                  onClick={() => setIsUserSearchOpen(true)}
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  New Message
+                </Button>
+                {/* Search Bar for DM threads */}
+                <Input
+                  placeholder="Search DMs..."
+                  className="mt-4 bg-input/60 backdrop-blur-sm border-border text-foreground focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-300"
+                />
+              </div>
+              <ScrollArea className="h-[calc(100%-10rem)]">
+                <div className="p-2 space-y-1">
+                  {dmThreads.map((thread) => (
+                    <div
+                      key={thread.chat_id}
+                      className={`p-3 rounded-lg cursor-pointer transition-all duration-300 transform hover:scale-[1.01] flex items-center space-x-3 ${
+                        selectedDMUserId === thread.participants.find(p => p.id !== user?.id)?.id
+                          ? 'bg-primary/20 text-primary-foreground shadow-md'
+                          : 'bg-card/60 hover:bg-accent/30 text-foreground shadow-sm'
+                      }`}
+                      onClick={() => handleSelectUserForDM(thread.participants.find(p => p.id !== user?.id)?.id || '')}
+                    >
+                      <div className="relative">
+                        <Avatar className="w-10 h-10 border-2 border-primary/50">
+                          <AvatarImage src={thread.participants.find(p => p.id !== user?.id)?.avatar_url as string | undefined} />
+                          <AvatarFallback className="bg-primary text-primary-foreground">{thread.participants.find(p => p.id !== user?.id)?.username?.[0] || 'U'}</AvatarFallback>
                         </Avatar>
-                        <div className="flex-1 overflow-hidden">
-                          <div className="font-semibold text-slate-800 truncate">
-                            {thread.participants.find(p => p.id !== user?.id)?.username || 'Unknown User'}
-                            {/* Display online status */}
-                            {userStatuses[thread.participants.find(p => p.id !== user?.id)?.id || '']?.status === 'online' && (
-                              <span className="ml-2 inline-block h-2 w-2 rounded-full bg-green-500"></span>
-                            )}
+                        <span
+                          className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-card ${
+                            userStatuses[thread.participants.find(p => p.id !== user?.id)?.id || '']?.status === 'online'
+                              ? 'bg-green-500 animate-pulse-online'
+                              : userStatuses[thread.participants.find(p => p.id !== user?.id)?.id || '']?.status === 'away'
+                              ? 'bg-yellow-500'
+                              : 'bg-gray-500'
+                          }`}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {thread.participants.find(p => p.id !== user?.id)?.username}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {thread.last_message?.content || 'No messages yet'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+
+            {/* Main Chat Area */}
+            <div className="col-span-9 bg-card/80 backdrop-blur-lg rounded-lg border border-border shadow-lg flex flex-col">
+              <Tabs defaultValue="league" className="flex-1 flex flex-col">
+                <div className="border-b border-border">
+                  <TabsList className="w-full justify-start p-2 bg-muted/50 rounded-none">
+                    <TabsTrigger
+                      value="league"
+                      className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-300 rounded-md py-2 px-4"
+                    >
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      League Chat
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="dm"
+                      className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-colors duration-300 rounded-md py-2 px-4"
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Direct Messages
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+
+                <TabsContent value="league" className="flex-1 flex flex-col p-4 overflow-hidden">
+                  <ScrollArea className="flex-1 pr-2">
+                    <div className="space-y-4">
+                      {leagueMessages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`flex items-start gap-3 fade-in-message ${
+                            message.sender_id === user?.id ? 'justify-end' : 'justify-start'
+                          }`}
+                        >
+                          {message.sender_id !== user?.id && (
+                            <Avatar className="w-8 h-8 border-2 border-accent/50">
+                              <AvatarImage src={message.sender?.avatar_url as string | undefined} />
+                              <AvatarFallback className="bg-accent text-accent-foreground">{message.sender?.username?.[0] || 'U'}</AvatarFallback>
+                            </Avatar>
+                          )}
+                          <div
+                            className={`max-w-[70%] rounded-xl p-3 shadow-md relative ${
+                              message.sender_id === user?.id
+                                ? 'bg-primary text-primary-foreground rounded-br-none'
+                                : 'bg-muted/70 text-foreground rounded-bl-none backdrop-blur-md border border-border'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="font-medium text-sm">
+                                {message.sender_id === user?.id ? 'You' : message.sender?.username || 'Unknown User'}
+                              </span>
+                              <span className="text-xs text-muted-foreground opacity-80">
+                                {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className="text-sm">{message.content}</p>
+                            {/* Add Reaction Placeholder */}
+                            <div className="absolute -bottom-3 right-0 flex space-x-1">
+                              {/* Sample Reaction */}
+                              <span className="bg-secondary/80 text-secondary-foreground text-xs px-2 py-0.5 rounded-full shadow-sm hover:bg-secondary transition-colors cursor-pointer">👍 1</span>
+                            </div>
                           </div>
-                          <div className="text-sm text-slate-600 truncate">
-                            {thread.last_message?.content || 'Start of conversation'}
-                          </div>
+                          {message.sender_id === user?.id && (
+                            <Avatar className="w-8 h-8 border-2 border-primary/50">
+                              <AvatarImage src={user?.user_metadata?.avatar_url || undefined} />
+                              <AvatarFallback className="bg-primary text-primary-foreground">{userProfile?.username?.[0] || 'U'}</AvatarFallback>
+                            </Avatar>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                  {/* Input Bar for League Chat */}
+                  <div className="p-4 border-t border-border bg-card/70 backdrop-blur-lg rounded-b-lg">
+                    <div className="flex space-x-2">
+                      <Input
+                        placeholder="Type your message..."
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                        className="flex-1 bg-input/50 text-foreground border-border focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-300"
+                      />
+                      <Button
+                        onClick={handleSendMessage}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-[1.05]"
+                      >
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="dm" className="flex-1 flex flex-col p-4 overflow-hidden">
+                  {selectedDMUserId ? (
+                    <>
+                      <ScrollArea className="flex-1 pr-2">
+                        <div className="space-y-4">
+                          {directMessages.map((message) => (
+                            <div
+                              key={message.id}
+                              className={`flex items-start gap-3 fade-in-message ${
+                                message.sender_id === user?.id ? 'justify-end' : 'justify-start'
+                              }`}
+                            >
+                              {message.sender_id !== user?.id && (
+                                <Avatar className="w-8 h-8 border-2 border-accent/50">
+                                  <AvatarImage src={dmThreads.find(t => t.participants.some(p => p.id === message.sender_id))?.participants.find(p => p.id === message.sender_id)?.avatar_url as string | undefined} />
+                                  <AvatarFallback className="bg-accent text-accent-foreground">{dmThreads.find(t => t.participants.some(p => p.id === message.sender_id))?.participants.find(p => p.id === message.sender_id)?.username?.[0] || 'U'}</AvatarFallback>
+                                </Avatar>
+                              )}
+                              <div
+                                className={`max-w-[70%] rounded-xl p-3 shadow-md relative ${
+                                  message.sender_id === user?.id
+                                    ? 'bg-primary text-primary-foreground rounded-br-none'
+                                    : 'bg-muted/70 text-foreground rounded-bl-none backdrop-blur-md border border-border'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <span className="font-medium text-sm">
+                                    {message.sender_id === user?.id ? 'You' : dmThreads.find(t => t.participants.some(p => p.id === message.sender_id))?.participants.find(p => p.id === message.sender_id)?.username || 'Other User'}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground opacity-80">
+                                    {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className="text-sm">{message.content}</p>
+                                {/* Add Reaction Placeholder */}
+                                <div className="absolute -bottom-3 right-0 flex space-x-1">
+                                  {/* Sample Reaction */}
+                                  <span className="bg-secondary/80 text-secondary-foreground text-xs px-2 py-0.5 rounded-full shadow-sm hover:bg-secondary transition-colors cursor-pointer">👍 1</span>
+                                </div>
+                              </div>
+                              {message.sender_id === user?.id && (
+                                <Avatar className="w-8 h-8 border-2 border-primary/50">
+                                  <AvatarImage src={user?.user_metadata?.avatar_url || undefined} />
+                                  <AvatarFallback className="bg-primary text-primary-foreground">{userProfile?.username?.[0] || 'U'}</AvatarFallback>
+                                </Avatar>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                      {/* Input Bar for DM Chat */}
+                      <div className="p-4 border-t border-border bg-card/70 backdrop-blur-lg rounded-b-lg">
+                        <div className="flex space-x-2">
+                          <Input
+                            placeholder="Type your message..."
+                            value={messageInput}
+                            onChange={(e) => setMessageInput(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                            className="flex-1 bg-input/50 text-foreground border-border focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-300"
+                          />
+                          <Button
+                            onClick={handleSendMessage}
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-[1.05]"
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                    ))
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <p className="text-muted-foreground">Select a conversation to start messaging</p>
+                    </div>
                   )}
-
-                  {/* Button to open user search for new DM */}
-                  <div className="p-3">
-                     <Button className="w-full" onClick={() => setIsUserSearchOpen(true)}>
-                        <Search className="mr-2 h-4 w-4" /> Start New DM
-                     </Button>
-                  </div>
-                </ScrollArea>
-             </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Chat Window */}
-        <div className="flex-1 flex flex-col">
-          {/* Chat Header */}
-          <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between">
-             {currentView === 'league' && userProfile?.league ? ( // Use userProfile.league
-                <CardTitle className="text-xl font-semibold">League Chat: {userProfile.league.charAt(0).toUpperCase() + userProfile.league.slice(1)}</CardTitle>
-             ) : currentView === 'dm' && selectedDMUserId ? (
-                <CardTitle className="text-xl font-semibold">Direct Message: {dmThreads.find(t => t.participants.some(p => p.id === selectedDMUserId))?.participants.find(p => p.id !== user?.id)?.username || 'Loading...'}</CardTitle>
-             ) : (
-                <CardTitle className="text-xl font-semibold">Select a Chat</CardTitle>
-             )}
-             {/* Future: Add options button, etc. */}
+                </TabsContent>
+              </Tabs>
+            </div>
           </div>
-
-          {/* Message Area */}
-          <ScrollArea className="flex-grow p-4 space-y-4">
-             {currentView === 'league' && userProfile?.league ? ( // Use userProfile.league
-                leagueMessages.map((message, index) => (
-                   <div key={message.id || index} className={`flex items-start gap-3 ${
-                      message.sender_id === user?.id ? 'justify-end' : 'justify-start'
-                   }`}>
-                      {message.sender_id !== user?.id && (
-                         <Avatar>
-                            <AvatarImage src={message.sender?.avatar_url || undefined} />
-                            <AvatarFallback>{message.sender?.username?.[0] || 'U'}</AvatarFallback>
-                         </Avatar>
-                      )}
-                      <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${
-                         message.sender_id === user?.id ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-800'
-                      }`}>
-                         {message.sender_id !== user?.id && (
-                            <div className="font-semibold text-sm mb-1">{message.sender?.username || 'Unknown User'}</div>
-                         )}
-                         <p>{message.content}</p>
-                         <div className={`text-xs mt-1 ${
-                            message.sender_id === user?.id ? 'text-blue-200' : 'text-slate-500'
-                         }`}>
-                            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {/* Format time */}
-                         </div>
-                      </div>
-                      {message.sender_id === user?.id && (
-                         <Avatar>
-                             <AvatarImage src={message.sender?.avatar_url || undefined} />
-                            <AvatarFallback>{message.sender?.username?.[0] || 'U'}</AvatarFallback>
-                         </Avatar>
-                      )}
-                   </div>
-                ))
-             ) : currentView === 'dm' && selectedDMUserId ? (
-                directMessages.map((message, index) => (
-                   <div key={message.id || index} className={`flex items-start gap-3 ${
-                      message.sender_id === user?.id ? 'justify-end' : 'justify-start'
-                   }`}>
-                      {message.sender_id !== user?.id && (
-                         <Avatar>
-                             {/* Find the participant that is NOT the current user */}
-                             <AvatarImage src={dmThreads.find(t => t.participants.some(p => p.id === selectedDMUserId))?.participants.find(p => p.id !== user?.id)?.avatar_url || undefined} />
-                             <AvatarFallback>{dmThreads.find(t => t.participants.some(p => p.id === selectedDMUserId))?.participants.find(p => p.id !== user?.id)?.username?.[0] || 'U'}</AvatarFallback>
-                         </Avatar>
-                      )}
-                      <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${
-                         message.sender_id === user?.id ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-800'} // Different color for DM
-                      `}>
-                         {/* In DMs, sender username isn't strictly necessary in every message bubble */}
-                         <p>{message.content}</p>
-                         <div className={`text-xs mt-1 ${
-                            message.sender_id === user?.id ? 'text-green-200' : 'text-slate-500'}
-                         `}>
-                            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {/* Format time */}
-                         </div>
-                      </div>
-                      {message.sender_id === user?.id && (
-                         <Avatar>
-                            <AvatarImage src={user.user_metadata?.avatar_url || undefined} />
-                             <AvatarFallback>{user.user_metadata?.username?.[0] || user.email?.[0] || 'U'}</AvatarFallback>
-                         </Avatar>
-                      )}
-                   </div>
-                ))
-             ) : (
-                <div className="text-center text-slate-600">Select a chat from the sidebar.</div>
-             )}
-          </ScrollArea>
-
-          {/* Message Input Area */}
-          {(currentView === 'league' && userProfile?.league) || (currentView === 'dm' && selectedDMUserId) ? ( // Use userProfile.league
-             <div className="p-4 bg-white border-t border-slate-200 flex items-center gap-2">
-                <Input
-                   placeholder={`Send message to ${currentView === 'league' && userProfile?.league ? userProfile.league.charAt(0).toUpperCase() + userProfile.league.slice(1) + ' League' : selectedDMUserId ? 'user' : ''}`}
-                   value={messageInput}
-                   onChange={(e) => setMessageInput(e.target.value)}
-                   onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                         handleSendMessage();
-                      }
-                   }}
-                   className="flex-grow"
-                />
-                <Button onClick={handleSendMessage}>
-                   <Send className="h-5 w-5" />
-                </Button>
-             </div>
-          ) : null}
-
         </div>
 
-        {/* User Search Dialog for New DM */}
+        {/* User Search Dialog */}
         <Dialog open={isUserSearchOpen} onOpenChange={setIsUserSearchOpen}>
-           <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                 <DialogTitle>Start New Direct Message</DialogTitle>
-                 <DialogDescription>Search for a user by username to start a private chat.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                 <Command>
-                    <CommandInput placeholder="Search users..." value={searchTerm} onValueChange={setSearchTerm} />
-                    <CommandList>
-                       {searchTerm.length < 3 && (
-                         <CommandEmpty>Type at least 3 characters to search.</CommandEmpty>
-                       )}
-                       {searchTerm.length >= 3 && searchResults.length === 0 && (
-                         <CommandEmpty>No users found.</CommandEmpty>
-                       )}
-                       {searchResults.map((user) => (
-                         <CommandItem
-                            key={user.id}
-                            onSelect={() => {
-                              handleSelectUserForDM(user.id);
-                              setIsUserSearchOpen(false);
-                              setSearchTerm(''); // Clear search term
-                              setSearchResults([]); // Clear search results
-                            }}
-                         >
-                            <Avatar className="mr-2 h-8 w-8">
-                               <AvatarImage src={user.avatar_url || undefined} />
-                               <AvatarFallback>{user.username?.[0] || 'U'}</AvatarFallback>
-                            </Avatar>
-                            {user.username}
-                         </CommandItem>
-                       ))}
-                    </CommandList>
-                 </Command>
-              </div>
-           </DialogContent>
+          <DialogContent className="sm:max-w-[425px] bg-card/90 backdrop-blur-lg border border-border shadow-2xl rounded-lg">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">New Message</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Search for a user to start a conversation
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Command className="bg-background/50 backdrop-blur-sm rounded-lg border border-border">
+                <CommandInput
+                  placeholder="Search users..."
+                  value={searchTerm}
+                  onValueChange={setSearchTerm}
+                  className="bg-input/60 text-foreground border-b border-border focus:ring-0 focus:border-primary"
+                />
+                <CommandList>
+                  <CommandEmpty className="text-muted-foreground py-4 text-center">No users found.</CommandEmpty>
+                  {searchResults.map((user) => (
+                    <CommandItem
+                      key={user.id}
+                      onSelect={() => {
+                        handleSelectUserForDM(user.id);
+                        setIsUserSearchOpen(false);
+                      }}
+                      className="flex items-center space-x-2 p-2 hover:bg-accent/50 cursor-pointer transition-colors"
+                    >
+                      <Avatar className="h-8 w-8 border-2 border-primary/50">
+                        <AvatarImage src={user.avatar_url || undefined} />
+                        <AvatarFallback className="bg-primary text-primary-foreground">{user.username?.[0] || 'U'}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-foreground">{user.username}</span>
+                    </CommandItem>
+                  ))}
+                </CommandList>
+              </Command>
+            </div>
+          </DialogContent>
         </Dialog>
-
       </div>
     </ProtectedRoute>
   );
