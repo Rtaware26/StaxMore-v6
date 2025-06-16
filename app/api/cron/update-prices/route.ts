@@ -1,4 +1,5 @@
-import { supabase } from "@/lib/supabaseClient"
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from "@supabase/supabase-js"
 
 const TD_KEY = process.env.TWELVE_DATA_API_KEY!
 const TD_URL = "https://api.twelvedata.com/price"
@@ -28,6 +29,16 @@ export const runtime = "edge"
 
 export async function GET() {
   try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("Supabase environment variables are not set. SUPABASE_URL or SUPABASE_ANON_KEY is missing.");
+      return NextResponse.json({ message: "Server configuration error: Supabase credentials missing." }, { status: 500 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
     // fetch active symbols
     const { data: assets } = (await supabase.from("assets").select("symbol, asset_class")
       .eq("is_active", true)
@@ -76,13 +87,13 @@ export async function GET() {
       const { error } = await supabase.from("asset_prices").upsert(rows)
       if (error) {
         console.error("Error upserting prices:", error)
-        return new Response(`Database error: ${error.message}`, { status: 500 })
+        return NextResponse.json({ message: `Database error: ${error.message}` }, { status: 500 })
       }
     }
 
     return new Response(`Updated ${rows.length} prices`)
   } catch (error) {
     console.error("Cron job error:", error)
-    return new Response(`Error: ${error instanceof Error ? error.message : "Unknown error"}`, { status: 500 })
+    return NextResponse.json({ message: `Error: ${error instanceof Error ? error.message : "Unknown error"}` }, { status: 500 })
   }
 }

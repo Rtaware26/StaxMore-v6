@@ -18,6 +18,13 @@ export default function SuccessPage() {
     const assignLeague = async () => {
       try {
         setIsLoading(true);
+
+        if (!supabase) {
+          setError("Supabase client not configured. Please check environment variables.");
+          setIsLoading(false);
+          return;
+        }
+
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
