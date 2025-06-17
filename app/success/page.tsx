@@ -3,18 +3,27 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle, Home } from 'lucide-react';
+import { CheckCircle, Home, AlertCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function SuccessPage() {
-  const params = useSearchParams();
-  const leagueFromParams = params.get('league');
-  const sessionId = params.get('session_id');
+  const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mountedLeagueFromParams, setMountedLeagueFromParams] = useState<string | null>(null);
+  const [mountedSessionId, setMountedSessionId] = useState<string | null>(null);
 
   useEffect(() => {
+    setIsMounted(true);
+    const params = useSearchParams();
+    setMountedLeagueFromParams(params.get('league'));
+    setMountedSessionId(params.get('session_id'));
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
     const assignLeague = async () => {
       try {
         setIsLoading(true);
@@ -32,14 +41,14 @@ export default function SuccessPage() {
           return;
         }
 
-        if (!leagueFromParams) {
-          setError("League information missing. Please try again.");
+        if (!mountedLeagueFromParams) {
+          setError("League information missing from URL. Please try again.");
           return;
         }
 
         const { error: updateError } = await supabase
           .from('profiles')
-          .update({ league: leagueFromParams })
+          .update({ league: mountedLeagueFromParams })
           .eq('id', user.id);
 
         if (updateError) {
@@ -54,8 +63,30 @@ export default function SuccessPage() {
       }
     };
 
-    assignLeague();
-  }, [leagueFromParams]);
+    if (mountedLeagueFromParams) {
+      assignLeague();
+    } else {
+      setIsLoading(false);
+    }
+  }, [isMounted, mountedLeagueFromParams]);
+
+  if (!isMounted) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-2xl text-center">
+          <div className="flex justify-center">
+            <CheckCircle className="h-16 w-16 text-green-500" />
+          </div>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            ✅ Payment successful!
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Your payment has been processed. Details will appear shortly.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -92,7 +123,7 @@ export default function SuccessPage() {
     );
   }
 
-  const displayLeague = leagueFromParams?.charAt(0).toUpperCase() + leagueFromParams?.slice(1);
+  const displayLeague = mountedLeagueFromParams?.charAt(0).toUpperCase() + mountedLeagueFromParams?.slice(1);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
