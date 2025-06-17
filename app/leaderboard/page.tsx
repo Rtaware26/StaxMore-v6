@@ -5,50 +5,34 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trophy, TrendingUp, TrendingDown, Copy, Users, Star, Crown, Target } from "lucide-react"
+import { Trophy, TrendingUp, TrendingDown, Copy, Users, Star, Crown, Target, Lock } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { supabase } from "@/lib/supabaseClient"
 import Leaderboard from '@/components/Leaderboard'
+import Link from "next/link"
 
 export default function LeaderboardPage() {
-  const { user, loading, userProfile } = useAuth()
+  const { user, loading, userProfile, isGuest, isFreeUser, isCompMember } = useAuth();
   const [copiedTrader, setCopiedTrader] = useState<string | null>(null)
 
   const pageLoading = loading;
 
+  // Dummy data for anonymized leaderboard for guests
+  const dummyLeaderboardData = [
+    { id: "1", rank: 1, username: "User #1", pnl: "+??.?%", league: "Diamond League" },
+    { id: "2", rank: 2, username: "User #2", pnl: "+??.?%", league: "Gold League" },
+    { id: "3", rank: 3, username: "User #3", pnl: "+??.?%", league: "Silver League" },
+    { id: "4", rank: 4, username: "User #4", pnl: "+??.?%", league: "Bronze League" },
+    { id: "5", rank: 5, username: "User #5", pnl: "+??.?%", league: "Diamond League" },
+  ];
+
   if (pageLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-950 text-gray-200">
-        <p>Loading leaderboard access...</p>
+        <p>Loading leaderboard...</p>
       </div>
     )
   }
-
-  const hasLeagueMembership = !!userProfile?.league;
-
-  if (!pageLoading && user && !hasLeagueMembership) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-950 py-8">
-        <div className="max-w-md w-full space-y-6 text-center bg-gray-800 p-8 rounded-xl shadow-2xl border border-gray-700">
-          <h2 className="text-2xl font-bold text-emerald-400">No League Membership</h2>
-          <p className="text-gray-400">You need to join a competition league to view leaderboards.</p>
-          <Button asChild className="bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-all duration-300">
-            <a href="/competitions">Explore Leagues</a>
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!user && !loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-gray-200">
-        <p>Please log in to view leaderboards.</p>
-      </div>
-    )
-  }
-
-  if (!user || !userProfile?.league) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-800 py-12 text-gray-200">
@@ -108,10 +92,37 @@ export default function LeaderboardPage() {
           </Card>
         </div>
 
-        {userProfile?.league ? (
-          <Leaderboard leagueId={userProfile.league} />
-        ) : (
-          !pageLoading && user && <div className="text-center py-4 text-gray-500">You do not have a league membership to view a leaderboard.</div>
+        {isGuest ? (
+          <div className="text-center py-8 px-4 bg-gray-800 rounded-xl shadow-xl border border-gray-700 mb-12">
+            <h2 className="text-3xl font-bold text-white mb-4">Unlock Full Leaderboard Access</h2>
+            <p className="text-lg text-gray-400 mb-6">Sign up or log in to see real-time ranks, PnL, and exclusive insights from top traders!</p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/signup">
+                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200">
+                  Sign Up Now
+                </Button>
+              </Link>
+              <Link href="/login">
+                <Button variant="outline" className="text-lg px-8 py-4 text-foreground border-border bg-background hover:bg-accent hover:text-accent-foreground">
+                  Log In
+                </Button>
+              </Link>
+            </div>
+          </div>
+        ) : isFreeUser ? (
+          <div className="text-center py-8 px-4 bg-gray-800 rounded-xl shadow-xl border border-gray-700 mb-12">
+            <h2 className="text-3xl font-bold text-white mb-4">Join a League to See Full Data</h2>
+            <p className="text-lg text-gray-400 mb-6">As a Free User, you can see the leaderboard, but full PnL and other details are only visible to active competition members. Explore our leagues to unlock full access!</p>
+            <Link href="/competitions">
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200">
+                Explore Leagues
+              </Button>
+            </Link>
+          </div>
+        ) : null}
+
+        {(isFreeUser || isCompMember) && ( // Show Leaderboard component for logged-in users
+          <Leaderboard leagueId={userProfile?.league || ""} anonymize={isFreeUser} />
         )}
 
         <div className="grid lg:grid-cols-3 gap-8 mt-12">

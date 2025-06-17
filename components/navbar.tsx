@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useAuth } from "./auth-provider"
+import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, Menu, X, TrendingUp, User } from "lucide-react"
+import { ChevronDown, Menu, X, TrendingUp, User, LockOpen, Medal } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
+import { Badge } from "@/components/ui/badge"
 
 export function Navbar() {
-  const { user, loading } = useAuth()
+  const { user, loading, isGuest, isFreeUser, isCompMember, userProfile, canAccessFeature } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const [scrolled, setScrolled] = useState(false)
@@ -47,12 +48,58 @@ export function Navbar() {
 
   const navigationItems = [
     {
+      name: "Trading",
+      items: [
+        {
+          name: "Demo Trading",
+          href: "/gym/demo-trading",
+          show: canAccessFeature('demo-trading'),
+        },
+        {
+          name: "Live Trading",
+          href: "/trading",
+          show: canAccessFeature('live-trading'),
+        },
+      ],
+    },
+    {
       name: "Competitions",
       items: [
-        { name: "Bronze League", href: "/competitions/bronze", description: "Free entry • Perfect for beginners" },
-        { name: "Silver League", href: "/competitions/silver", description: "$5 entry • Advanced analytics" },
-        { name: "Gold League", href: "/competitions/gold", description: "$10 entry • Options trading" },
-        { name: "Diamond League", href: "/competitions/diamond", description: "$15 entry • Full analytics suite" },
+        {
+          name: "Bronze League",
+          href: "/competitions/bronze",
+          show: canAccessFeature('competitions'),
+        },
+        {
+          name: "Silver League",
+          href: "/competitions/silver",
+          show: canAccessFeature('competitions'),
+        },
+        {
+          name: "Gold League",
+          href: "/competitions/gold",
+          show: canAccessFeature('competitions'),
+        },
+        {
+          name: "Diamond League",
+          href: "/competitions/diamond",
+          show: canAccessFeature('competitions'),
+        },
+      ],
+    },
+    {
+      name: "Community",
+      items: [
+        {
+          name: "Chat",
+          href: "/chat",
+          show: canAccessFeature('chat'),
+        },
+        {
+          name: "Leaderboard",
+          href: "/leaderboard",
+          show: canAccessFeature('competitions'),
+        },
       ],
     },
     {
@@ -103,6 +150,12 @@ export function Navbar() {
     },
   ]
 
+  // Filter navigation items based on user state
+  const filteredNavigationItems = navigationItems.map(section => ({
+    ...section,
+    items: section.items.filter(item => item.show),
+  })).filter(section => section.items.length > 0)
+
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 border-b border-border \
@@ -127,19 +180,10 @@ export function Navbar() {
               Home
             </Link>
 
-            <Link href="/leaderboard" className="text-muted-foreground px-4 py-2 rounded-full hover:bg-accent hover:text-accent-foreground transition-colors duration-200">
-              Leaderboard
-            </Link>
-
-            <Link href="/chat" className="text-muted-foreground px-4 py-2 rounded-full hover:bg-accent hover:text-accent-foreground transition-colors duration-200">
-              Chat
-            </Link>
-
-            {navigationItems.map((item) => (
+            {filteredNavigationItems.map((item) => (
               <div key={item.name} className="relative group">
                 <button
-                  onMouseEnter={() => setActiveDropdown(item.name)}
-                  onMouseLeave={() => setActiveDropdown(null)}
+                  onClick={() => handleDropdownToggle(item.name)}
                   className="flex items-center text-muted-foreground px-4 py-2 rounded-full hover:bg-accent hover:text-accent-foreground transition-colors duration-200"
                 >
                   {item.name}
@@ -194,7 +238,16 @@ export function Navbar() {
             {/* Auth Section */}
             {loading ? (
               <div className="w-24 h-10 bg-muted animate-pulse rounded-full"></div>
-            ) : user ? (
+            ) : isGuest ? (
+              <>
+                <Link href="/login">
+                  <Button variant="outline">Sign In</Button>
+                </Link>
+                <Link href="/signup">
+                  <Button>Sign Up</Button>
+                </Link>
+              </>
+            ) : (
               <div className="relative group">
                 <button
                   onMouseEnter={() => setActiveDropdown("user")}
@@ -204,7 +257,7 @@ export function Navbar() {
                   <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-full flex items-center justify-center">
                     <User className="h-4 w-4 text-white" />
                   </div>
-                  <span className="text-gray-200">{user.user_metadata?.username || user.email}</span>
+                  <span className="text-gray-200">{user?.user_metadata?.username || user?.email}</span>
                   <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-hover:rotate-180" />
                 </button>
 
@@ -215,6 +268,22 @@ export function Navbar() {
                     onMouseLeave={() => setActiveDropdown(null)}
                   >
                     <div className="p-2">
+                      {isFreeUser && (
+                        <div className="px-4 py-3 text-sm font-medium text-gray-300 flex items-center mb-2">
+                          <LockOpen className="h-4 w-4 mr-2 text-yellow-500" />
+                          <span>🔓 Free User</span>
+                        </div>
+                      )}
+                      {isCompMember && userProfile?.league && (
+                        <div className="px-4 py-3 text-sm font-medium text-gray-300 flex items-center mb-2">
+                          <Medal className={`h-4 w-4 mr-2 ${userProfile.league === 'bronze' ? 'text-amber-600' :
+                                                               userProfile.league === 'silver' ? 'text-gray-400' :
+                                                               userProfile.league === 'gold' ? 'text-yellow-500' :
+                                                               userProfile.league === 'diamond' ? 'text-purple-500' : ''}`} />
+                          <span>{userProfile.league.charAt(0).toUpperCase() + userProfile.league.slice(1)} League Member</span>
+                        </div>
+                      )}
+
                       <Link
                         href="/dashboard"
                         className="block px-4 py-3 text-sm font-medium text-gray-100 hover:bg-gray-700 rounded-lg transition-colors"
@@ -222,20 +291,24 @@ export function Navbar() {
                       >
                         Dashboard
                       </Link>
-                      <Link
-                        href="/gym"
-                        className="block px-4 py-3 text-sm font-medium text-gray-100 hover:bg-gray-700 rounded-lg transition-colors"
-                        onClick={closeDropdowns}
-                      >
-                        Stonks Gym
-                      </Link>
-                      <Link
-                        href="/trade"
-                        className="block px-4 py-3 text-sm font-medium text-gray-100 hover:bg-gray-700 rounded-lg transition-colors"
-                        onClick={closeDropdowns}
-                      >
-                        Live Trading
-                      </Link>
+                      {(isFreeUser || isCompMember) && (
+                        <Link
+                          href="/gym"
+                          className="block px-4 py-3 text-sm font-medium text-gray-100 hover:bg-gray-700 rounded-lg transition-colors"
+                          onClick={closeDropdowns}
+                        >
+                          Stonks Gym
+                        </Link>
+                      )}
+                      {isCompMember && (
+                        <Link
+                          href="/trade"
+                          className="block px-4 py-3 text-sm font-medium text-gray-100 hover:bg-gray-700 rounded-lg transition-colors"
+                          onClick={closeDropdowns}
+                        >
+                          Live Trading
+                        </Link>
+                      )}
                       <Link
                         href="/profile"
                         className="block px-4 py-3 text-sm font-medium text-gray-100 hover:bg-gray-700 rounded-lg transition-colors"
@@ -253,150 +326,138 @@ export function Navbar() {
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="flex items-center space-x-2 ml-4">
-                <Button asChild className="bg-gradient-to-r from-emerald-500 to-blue-600 hover:from-emerald-600 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition-all duration-300">
-                  <Link href="/login">Sign In</Link>
-                </Button>
-                <Button asChild variant="outline" className="bg-gray-800 border-gray-700 text-gray-200 hover:bg-gray-700 hover:border-gray-600 hover:text-white font-semibold py-2 px-4 rounded-full shadow-md transition-all duration-300">
-                  <Link href="/signup">Sign Up</Link>
-                </Button>
-              </div>
             )}
-          </div>
 
-          {/* Mobile Menu Button */}
-          <div className="lg:hidden flex items-center">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-gray-400 hover:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
+            {/* Mobile menu button */}
+            <div className="lg:hidden flex items-center">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+              >
+                <span className="sr-only">Open main menu</span>
+                {mobileMenuOpen ? (
+                  <X className="block h-6 w-6" aria-hidden="true" />
+                ) : (
+                  <Menu className="block h-6 w-6" aria-hidden="true" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile menu panel */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 bg-gray-950/90 backdrop-blur-md z-40" onClick={() => setMobileMenuOpen(false)}>
-          <div className="absolute top-0 right-0 w-64 h-full bg-gray-900 border-l border-gray-800 shadow-lg p-6 overflow-y-auto transform transition-transform duration-300 ease-in-out" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-end mb-4">
-              <button
+        <div className="lg:hidden">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+            <Link
+              href="/"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Home
+            </Link>
+            <Link
+              href="/leaderboard"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Leaderboard
+            </Link>
+            {isCompMember && (
+              <Link
+                href="/chat"
+                className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-2 text-gray-400 hover:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <Link href="/" className="block px-4 py-2 text-gray-200 hover:bg-gray-800 rounded-lg transition-colors font-medium" onClick={() => setMobileMenuOpen(false)}>
-                Home
-              </Link>
-              <Link href="/leaderboard" className="block px-4 py-2 text-gray-200 hover:bg-gray-800 rounded-lg transition-colors font-medium" onClick={() => setMobileMenuOpen(false)}>
-                Leaderboard
-              </Link>
-              <Link href="/chat" className="block px-4 py-2 text-gray-200 hover:bg-gray-800 rounded-lg transition-colors font-medium" onClick={() => setMobileMenuOpen(false)}>
                 Chat
               </Link>
-              {navigationItems.map((item) => (
-                <div key={item.name} className="border-b border-gray-800 pb-2 last:border-b-0">
-                  <button
-                    onClick={() => handleDropdownToggle(item.name)}
-                    className="flex items-center justify-between w-full px-4 py-2 text-gray-200 hover:bg-gray-800 rounded-lg transition-colors font-medium"
-                  >
-                    {item.name}
-                    <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${activeDropdown === item.name ? 'rotate-180' : ''}`} />
-                  </button>
-                  {activeDropdown === item.name && (
-                    <div className="pl-4 pt-2 space-y-2">
-                      {item.items.map((subItem) => (
-                        <div key={subItem.name}>
-                          {subItem.href ? (
-                            <Link
-                              href={subItem.href}
-                              className="block p-2 text-sm text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
-                              onClick={() => setMobileMenuOpen(false)}
-                            >
-                              <div className="font-medium text-gray-100">{subItem.name}</div>
-                              {subItem.description && (
-                                <div className="text-xs text-gray-400 mt-1">{subItem.description}</div>
-                              )}
-                            </Link>
-                          ) : (
-                            <div>
-                              <div className="px-2 py-2 text-xs font-semibold text-gray-100 bg-gray-800 rounded-lg mb-1">
-                                {subItem.name}
-                              </div>
-                              {subItem.subitems?.map((subsubItem) => (
-                                <Link
-                                  key={subsubItem.name}
-                                  href={subsubItem.href}
-                                  className="block px-4 py-2 text-xs text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
-                                  onClick={() => setMobileMenuOpen(false)}
-                                >
-                                  {subsubItem.name}
-                                </Link>
-                              ))}
+            )}
+            {(isFreeUser || isCompMember) && (
+              <Link
+                href="/gym"
+                className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Stonks Gym
+              </Link>
+            )}
+            {isCompMember && (
+              <Link
+                href="/trade"
+                className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Live Trading
+              </Link>
+            )}
+            {filteredNavigationItems.map((item) => (
+              <div key={item.name}>
+                <button
+                  onClick={() => handleDropdownToggle(item.name)}
+                  className="flex items-center justify-between w-full px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+                >
+                  {item.name}
+                  <ChevronDown className={`h-5 w-5 transition-transform ${activeDropdown === item.name ? "rotate-180" : ""}`} />
+                </button>
+                {activeDropdown === item.name && (
+                  <div className="pl-4 pr-2 py-2 space-y-1">
+                    {item.items.map((subItem) => (
+                      <div key={subItem.name}>
+                        {subItem.href ? (
+                          <Link
+                            href={subItem.href}
+                            className="block px-3 py-2 rounded-md text-sm font-medium text-gray-400 hover:bg-gray-600 hover:text-white"
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            {subItem.name}
+                          </Link>
+                        ) : (
+                          <div>
+                            <div className="px-3 py-2 text-sm font-semibold text-gray-300 bg-gray-700 rounded-md mb-1">
+                              {subItem.name}
                             </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                            {subItem.subitems?.map((subsubItem) => (
+                              <Link
+                                key={subsubItem.name}
+                                href={subsubItem.href}
+                                className="block px-6 py-2 text-sm text-gray-400 hover:bg-gray-600 hover:text-white rounded-md"
+                                onClick={() => setMobileMenuOpen(false)}
+                              >
+                                {subsubItem.name}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
 
-              {loading ? (
-                <div className="w-full h-10 bg-gray-700 animate-pulse rounded-full mt-4"></div>
-              ) : user ? (
-                <>
-                  <Link
-                    href="/dashboard"
-                    className="block px-4 py-2 text-gray-200 hover:bg-gray-800 rounded-lg transition-colors font-medium mt-4"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Dashboard
-                  </Link>
-                  <Link
-                    href="/gym"
-                    className="block px-4 py-2 text-gray-200 hover:bg-gray-800 rounded-lg transition-colors font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Stonks Gym
-                  </Link>
-                  <Link
-                    href="/trade"
-                    className="block px-4 py-2 text-gray-200 hover:bg-gray-800 rounded-lg transition-colors font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Live Trading
-                  </Link>
-                  <Link
-                    href="/profile"
-                    className="block px-4 py-2 text-gray-200 hover:bg-gray-800 rounded-lg transition-colors font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Profile Settings
-                  </Link>
-                  <button
-                    onClick={handleSignOut}
-                    className="block w-full text-left px-4 py-2 text-red-400 hover:bg-red-900 rounded-lg transition-colors font-medium"
-                  >
-                    Sign Out
-                  </button>
-                </>
-              ) : (
-                <div className="flex flex-col space-y-2 mt-4">
-                  <Button asChild className="w-full bg-gradient-to-r from-emerald-500 to-blue-600 hover:from-emerald-600 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition-all duration-300">
-                    <Link href="/login" onClick={() => setMobileMenuOpen(false)}>Sign In</Link>
+            {isGuest && (
+              <div className="pt-4 pb-3 border-t border-gray-700">
+                <Link href="/login">
+                  <Button className="block w-full text-center px-3 py-2 rounded-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                    Sign In
                   </Button>
-                  <Button asChild variant="outline" className="w-full bg-gray-800 border-gray-700 text-gray-200 hover:bg-gray-700 hover:border-gray-600 hover:text-white font-semibold py-2 px-4 rounded-full shadow-md transition-all duration-300">
-                    <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>Sign Up</Link>
-                  </Button>
-                </div>
-              )}
-            </div>
+                </Link>
+                <Link href="/signup" className="mt-2 block">
+                  <Button variant="outline" className="w-full text-base">Sign Up</Button>
+                </Link>
+              </div>
+            )}
+            {!loading && user && (
+              <div className="pt-4 pb-3 border-t border-gray-700">
+                <button
+                  onClick={handleSignOut}
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-400 hover:bg-red-900"
+                >
+                  Sign Out
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

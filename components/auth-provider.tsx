@@ -15,6 +15,10 @@ interface AuthContextType {
   signOut: () => Promise<void>
   userProfile: UserProfile | null
   refreshProfile: () => Promise<void>
+  isGuest: boolean;
+  isFreeUser: boolean;
+  isCompMember: boolean;
+  canAccessFeature: (feature: 'chat' | 'demo-trading' | 'live-trading' | 'competitions') => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -86,6 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut: enhancedSignOut,
     userProfile: auth.userProfile,
     refreshProfile: auth.refreshProfile,
+    isGuest: auth.isGuest,
+    isFreeUser: auth.isFreeUser,
+    isCompMember: auth.isCompMember,
+    canAccessFeature: auth.canAccessFeature,
   }
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>

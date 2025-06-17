@@ -35,6 +35,7 @@ import { LeagueService, type League } from "@/lib/league-service"
 import { handleCheckout } from "@/lib/checkout-service"
 // import { useLeagueAccess } from "@/hooks/useLeagueAccess" // Removed for demo trading
 import { formatCurrencyAbbreviated } from "@/lib/utils"
+import { FeatureAccess } from "@/components/feature-access"
 
 export default function DemoTradePage() { // Renamed component for clarity
   const { user, loading: authLoading } = useAuth() // Renamed loading to authLoading to avoid conflicts
@@ -361,21 +362,8 @@ export default function DemoTradePage() { // Renamed component for clarity
     return true
   }, [selectedSymbol, quantity, orderType, limitPrice])
 
-  // Conditional rendering based on loading and user/profile status
-  if (authLoading || !user) { // Using authLoading here
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-center">
-        <div className="p-8 bg-card rounded-lg shadow-lg border border-border">
-          <h2 className="text-2xl font-bold text-foreground mb-4">Loading or Authentication Required</h2>
-          <p className="text-muted-foreground mb-6">{authLoading ? "Loading demo trading..." : "Please log in to access demo trading."}</p>
-          {!authLoading && <Button onClick={() => window.location.href = '/login'}>Go to Login</Button>}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <ProtectedRoute>
+    <FeatureAccess feature="demo-trading">
       <div className="min-h-screen bg-background text-foreground p-4">
         <div className="container mx-auto max-w-7xl">
           <h1 className="text-4xl font-bold mb-6 text-center">Stonks Gym: Demo Trading</h1>
@@ -806,6 +794,6 @@ export default function DemoTradePage() { // Renamed component for clarity
           )}
         </div>
       </div>
-    </ProtectedRoute>
+    </FeatureAccess>
   );
 } 

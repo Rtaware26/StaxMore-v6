@@ -1,9 +1,14 @@
+"use client"
+
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { BookOpen, Trophy, BarChart3, ArrowRight, Star, CheckCircle } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
 
 export default function HomePage() {
+  const { isGuest, isFreeUser, isCompMember } = useAuth();
+
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -21,16 +26,33 @@ export default function HomePage() {
               </span>
             </h1>
             <p className="text-xl lg:text-2xl text-muted-foreground mb-12 leading-relaxed">
-              The ultimate gamified trading platform. Compete in leagues, learn from experts, and build your trading
-              skills with real-time market simulation.
+              {isCompMember
+                ? "You're already a competition member! Continue your journey with real-time market simulation and advanced features."
+                : "The ultimate gamified trading platform. Compete in leagues, learn from experts, and build your trading skills with real-time market simulation."}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/trade">
-                <Button className="text-lg px-8 py-4 bg-primary text-primary-foreground hover:bg-primary/90">
-                  Start Live Trading
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
+              {isCompMember ? (
+                <Link href="/trade">
+                  <Button className="text-lg px-8 py-4 bg-primary text-primary-foreground hover:bg-primary/90">
+                    Go to Live Trading
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+              ) : isFreeUser ? (
+                <Link href="/gym">
+                  <Button className="text-lg px-8 py-4 bg-primary text-primary-foreground hover:bg-primary/90">
+                    Go to Stonks Gym
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/signup">
+                  <Button className="text-lg px-8 py-4 bg-primary text-primary-foreground hover:bg-primary/90">
+                    Start Free Trading
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+              )}
               <Link href="/education/beginner/technical">
                 <Button variant="outline" className="text-lg px-8 py-4 text-foreground border-border bg-background hover:bg-accent hover:text-accent-foreground">
                   Start Learning
@@ -213,24 +235,68 @@ export default function HomePage() {
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-br from-background to-card">
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold text-foreground mb-6 tracking-tight">Ready to Start Your Trading Journey?</h2>
-          <p className="text-muted-foreground mb-12 leading-relaxed">
-            Join thousands of traders already improving their skills on Staxmore. Start with our live trading platform
-            or jump into competitions.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/signup">
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200">
-                Get Started Free
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
-            <Link href="/trade">
-              <Button className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border border-border rounded-full px-8 py-4 text-lg font-semibold transition-all duration-200">
-                Try Live Trading
-              </Button>
-            </Link>
-          </div>
+          {isCompMember ? (
+            <>
+              <h2 className="text-4xl font-bold text-foreground mb-6 tracking-tight">Keep Mastering the Markets!</h2>
+              <p className="text-muted-foreground mb-12 leading-relaxed">
+                You're already a Staxmore competition member. Continue honing your skills and aiming for the top.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link href="/dashboard">
+                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <Link href="/trade">
+                  <Button className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border border-border rounded-full px-8 py-4 text-lg font-semibold transition-all duration-200">
+                    Continue Trading
+                  </Button>
+                </Link>
+              </div>
+            </>
+          ) : isFreeUser ? (
+            <>
+              <h2 className="text-4xl font-bold text-foreground mb-6 tracking-tight">Ready for Real Competitions?</h2>
+              <p className="text-muted-foreground mb-12 leading-relaxed">
+                Upgrade your membership to join real-money competitions and compete for bigger prizes.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link href="/competitions/silver"> {/* Link to a higher tier competition */}
+                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200">
+                    Upgrade to Compete
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border border-border rounded-full px-8 py-4 text-lg font-semibold transition-all duration-200">
+                    Go to Dashboard
+                  </Button>
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-4xl font-bold text-foreground mb-6 tracking-tight">Ready to Start Your Trading Journey?</h2>
+              <p className="text-muted-foreground mb-12 leading-relaxed">
+                Join thousands of traders already improving their skills on Staxmore. Start with our live trading platform
+                or jump into competitions.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link href="/signup">
+                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200">
+                    Get Started Free
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <Link href="/login">
+                  <Button className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border border-border rounded-full px-8 py-4 text-lg font-semibold transition-all duration-200">
+                    Sign In
+                  </Button>
+                </Link>
+              </div>
+            </>
+          )}
         </div>
       </section>
     </div>

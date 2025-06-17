@@ -11,6 +11,15 @@ export interface UserProfile {
   username: string | null;
   league: string | null; // Assuming league can be null if user hasn't joined yet
   can_be_copied: boolean; // New field for copy trade opt-in
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface UserState {
+  isGuest: boolean;
+  isFreeUser: boolean;
+  isCompMember: boolean;
+  canAccessFeature: (feature: 'chat' | 'demo-trading' | 'live-trading' | 'competitions') => boolean;
 }
 
 export function useUser() {
@@ -149,13 +158,40 @@ export function useUser() {
     }
   }
 
+  // Helper function to check feature access
+  const canAccessFeature = (feature: 'chat' | 'demo-trading' | 'live-trading' | 'competitions'): boolean => {
+    if (!user || loading) return false;
+    
+    switch (feature) {
+      case 'chat':
+        return !!userProfile?.league; // Only comp members can access chat
+      case 'demo-trading':
+        return !!user; // Any authenticated user can access demo trading
+      case 'live-trading':
+        return !!userProfile?.league; // Only comp members can access live trading
+      case 'competitions':
+        return !!user; // Any authenticated user can access competitions
+      default:
+        return false;
+    }
+  };
+
+  // Create user state object
+  const userState: UserState = {
+    isGuest: !user && !loading,
+    isFreeUser: !!user && !loading && !userProfile?.league,
+    isCompMember: !!user && !loading && !!userProfile?.league,
+    canAccessFeature,
+  };
+
   return {
     user,
     session,
     loading,
     error,
     signOut,
-    userProfile, // Include userProfile in the returned object
-    refreshProfile, // Include refreshProfile in the returned object
+    userProfile,
+    refreshProfile,
+    ...userState, // Spread the user state properties
   }
 }

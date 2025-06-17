@@ -1,6 +1,73 @@
+"use client"
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/auth-provider";
+import { supabase } from "@/lib/supabaseClient";
+import { toast } from "@/components/ui/use-toast";
+import { Loader2, RefreshCcw } from "lucide-react";
 
 const GymPage = () => {
+  const { isGuest, user, loading: authLoading } = useAuth();
+  const [resetting, setResetting] = useState(false);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+        <p>Loading gym access...</p>
+      </div>
+    );
+  }
+
+  if (isGuest) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background py-8 text-foreground">
+        <div className="max-w-md w-full space-y-6 text-center bg-card p-8 rounded-xl shadow-2xl border border-border">
+          <h2 className="text-2xl font-bold text-primary">Stonks Gym Access Restricted</h2>
+          <p className="text-muted-foreground">You need to be logged in to access the Stonks Gym and practice your trading skills.</p>
+          <Link href="/signup">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 px-6 rounded-lg transition-all duration-300">
+              Sign Up for Free Access
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const handleResetCapital = async () => {
+    if (!user) return;
+
+    setResetting(true);
+    try {
+      const { error } = await supabase.rpc('reset_demo_capital');
+
+      if (error) {
+        console.error("Error resetting capital:", error);
+        toast({
+          title: "Error",
+          description: "Failed to reset capital. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Demo capital reset successfully!",
+        });
+      }
+    } catch (err) {
+      console.error("Unexpected error during capital reset:", err);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground py-16">
       <div className="container mx-auto px-4 max-w-5xl">
@@ -19,6 +86,17 @@ const GymPage = () => {
         <p className="text-xl text-muted-foreground mb-12 text-center max-w-3xl mx-auto">
           Here you can hone your investment skills and become a true master of the market through interactive modules and exercises.
         </p>
+
+        <div className="flex justify-center mb-10">
+          <Button 
+            onClick={handleResetCapital}
+            disabled={resetting}
+            className="bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 flex items-center"
+          >
+            {resetting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <RefreshCcw className="mr-2 h-5 w-5" />}
+            {resetting ? "Resetting Capital..." : "Reset Demo Capital"}
+          </Button>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Economics Calendar */}

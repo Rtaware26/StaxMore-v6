@@ -1,8 +1,12 @@
+"use client"
+
 import { ComingSoon } from "@/components/coming-soon"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { BookOpen, Clock, CheckCircle } from "lucide-react"
+import { BookOpen, Clock, CheckCircle, Lock } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
+import Link from "next/link"
 
 interface EducationPageProps {
   params: {
@@ -13,9 +17,24 @@ interface EducationPageProps {
 
 export default function EducationPage({ params }: EducationPageProps) {
   const { tier, topic } = params
+  const { isGuest, isFreeUser, isCompMember } = useAuth();
 
   // Sample content for technical analysis beginner
   if (tier === "beginner" && topic === "technical") {
+    const lessons = [
+      { title: "Introduction to Technical Analysis", duration: "30 min", completed: false, href: "/education/lesson1" },
+      { title: "Understanding Price Charts", duration: "45 min", completed: false, href: "/education/lesson2" },
+      { title: "Support and Resistance Levels", duration: "30 min", completed: false, href: "/education/lesson3" },
+      { title: "Trend Lines and Patterns", duration: "40 min", completed: false, href: "/education/lesson4" },
+      { title: "Chart Patterns (Basics)", duration: "50 min", completed: false, href: "/education/lesson5" },
+      { title: "Moving Averages", duration: "35 min", completed: false, href: "/education/lesson6" },
+      { title: "Risk Management Basics", duration: "40 min", completed: false, href: "/education/lesson7" },
+      { title: "Trading Psychology", duration: "45 min", completed: false, href: "/education/lesson8" },
+      { title: "Trading Plan Development", duration: "60 min", completed: false, href: "/education/lesson9" },
+      { title: "Backtesting Strategies", duration: "45 min", completed: false, href: "/education/lesson10" },
+      { title: "Putting It All Together", duration: "25 min", completed: false, href: "/education/lesson11" },
+    ];
+
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -75,20 +94,11 @@ export default function EducationPage({ params }: EducationPageProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { title: "Introduction to Technical Analysis", duration: "30 min", completed: false, href: "/education/lesson1" },
-                  { title: "Understanding Price Charts", duration: "45 min", completed: false, href: "/education/lesson2" },
-                  { title: "Support and Resistance Levels", duration: "30 min", completed: false, href: "/education/lesson3" },
-                  { title: "Trend Lines and Patterns", duration: "40 min", completed: false, href: "/education/lesson4" },
-                  { title: "Chart Patterns (Basics)", duration: "50 min", completed: false, href: "/education/lesson5" },
-                  { title: "Moving Averages", duration: "35 min", completed: false, href: "/education/lesson6" },
-                  { title: "Risk Management Basics", duration: "40 min", completed: false, href: "/education/lesson7" },
-                  { title: "Trading Psychology", duration: "45 min", completed: false, href: "/education/lesson8" },
-                  { title: "Trading Plan Development", duration: "60 min", completed: false, href: "/education/lesson9" },
-                  { title: "Backtesting Strategies", duration: "45 min", completed: false, href: "/education/lesson10" },
-                  { title: "Putting It All Together", duration: "25 min", completed: false, href: "/education/lesson11" },
-                ].map((lesson, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                {lessons.map((lesson, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-center justify-between p-4 border rounded-lg ${isGuest && index !== 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
                     <div className="flex items-center space-x-3">
                       <div
                         className={`w-6 h-6 rounded-full flex items-center justify-center ${
@@ -106,12 +116,27 @@ export default function EducationPage({ params }: EducationPageProps) {
                         <p className="text-sm text-gray-600">{lesson.duration}</p>
                       </div>
                     </div>
-                    <Button asChild variant="outline" size="sm">
-                      <a href={lesson.href}>{lesson.completed ? "Review" : "Start"}</a>
-                    </Button>
+                    {isGuest && index !== 0 ? (
+                      <Lock className="h-5 w-5 text-gray-400" />
+                    ) : (
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={lesson.href}>{lesson.completed ? "Review" : "Start"}</Link>
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
+              {isGuest && (
+                <div className="mt-8 text-center">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">Unlock All Lessons!</h3>
+                  <p className="text-gray-600 mb-6">
+                    Sign up for free to unlock all beginner-level lessons and start your comprehensive trading education.
+                  </p>
+                  <Link href="/signup">
+                    <Button size="lg">Sign Up Now</Button>
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -123,7 +148,9 @@ export default function EducationPage({ params }: EducationPageProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div
+                  className={`flex items-center justify-between p-4 border rounded-lg ${isGuest ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
                   <div className="flex items-center space-x-3">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-100">
                       <span className="text-sm text-gray-600">1</span>
@@ -133,9 +160,13 @@ export default function EducationPage({ params }: EducationPageProps) {
                       <p className="text-sm text-gray-600">30 min</p>
                     </div>
                   </div>
-                  <Button asChild variant="outline" size="sm">
-                    <a href="/education/fundamentals-1">Start</a>
-                  </Button>
+                  {isGuest ? (
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href="/education/fundamentals-1">Start</Link>
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -151,6 +182,12 @@ export default function EducationPage({ params }: EducationPageProps) {
 
   // Sample content for fundamental analysis beginner
   if (tier === "beginner" && topic === "fundamental") {
+    const lessons = [
+      { title: "What is Fundamental Analysis?", duration: "30 min", completed: false, href: "/education/fundamentals-1" },
+      { title: "Macroeconomic Indicators That Move Markets", duration: "40 min", completed: false, href: "/education/fundamentals-2" },
+      { title: "Earnings, Revenue & Company-Specific Data", duration: "45 min", completed: false, href: "/education/fundamentals-3" },
+      // Add more fundamental lessons here as they are created
+    ];
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -210,13 +247,11 @@ export default function EducationPage({ params }: EducationPageProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { title: "What is Fundamental Analysis?", duration: "30 min", completed: false, href: "/education/fundamentals-1" },
-                  { title: "Macroeconomic Indicators That Move Markets", duration: "40 min", completed: false, href: "/education/fundamentals-2" },
-                  { title: "Earnings, Revenue & Company-Specific Data", duration: "45 min", completed: false, href: "/education/fundamentals-3" },
-                  // Add more fundamental lessons here as they are created
-                ].map((lesson, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                {lessons.map((lesson, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-center justify-between p-4 border rounded-lg ${isGuest && index !== 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
                     <div className="flex items-center space-x-3">
                       <div
                         className={`w-6 h-6 rounded-full flex items-center justify-center ${
@@ -234,12 +269,27 @@ export default function EducationPage({ params }: EducationPageProps) {
                         <p className="text-sm text-gray-600">{lesson.duration}</p>
                       </div>
                     </div>
-                    <Button asChild variant="outline" size="sm">
-                      <a href={lesson.href}>{lesson.completed ? "Review" : "Start"}</a>
-                    </Button>
+                    {isGuest && index !== 0 ? (
+                      <Lock className="h-5 w-5 text-gray-400" />
+                    ) : (
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={lesson.href}>{lesson.completed ? "Review" : "Start"}</Link>
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
+              {isGuest && (
+                <div className="mt-8 text-center">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">Unlock All Lessons!</h3>
+                  <p className="text-gray-600 mb-6">
+                    Sign up for free to unlock all beginner-level lessons and start your comprehensive trading education.
+                  </p>
+                  <Link href="/signup">
+                    <Button size="lg">Sign Up Now</Button>
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -253,6 +303,14 @@ export default function EducationPage({ params }: EducationPageProps) {
 
   // Sample content for psychology & risk beginner
   if (tier === "beginner" && topic === "psychology") {
+    const lessons = [
+      { title: "What Trading Really Is: A Mental Game", duration: "40 min", completed: false, href: "/education/beginner/psychology-1" },
+      { title: "Risk Per Trade — Your Lifeline", duration: "40 min", completed: false, href: "/education/beginner/psychology-2" },
+      { title: "Emotional Triggers – Spotting the Enemy Within", duration: "40 min", completed: false, href: "/education/beginner/psychology-3" },
+      { title: "Journaling & Self-Review – Becoming Your Own Coach", duration: "40 min", completed: false, href: "/education/beginner/psychology-4" },
+      { title: "Risk Management Myths That Are Draining Your Account", duration: "40 min", completed: false, href: "/education/beginner/psychology-5" },
+      // 
+    ];
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -312,15 +370,11 @@ export default function EducationPage({ params }: EducationPageProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { title: "What Trading Really Is: A Mental Game", duration: "40 min", completed: false, href: "/education/beginner/psychology-1" },
-                  { title: "Risk Per Trade — Your Lifeline", duration: "40 min", completed: false, href: "/education/beginner/psychology-2" },
-                  { title: "Emotional Triggers – Spotting the Enemy Within", duration: "40 min", completed: false, href: "/education/beginner/psychology-3" },
-                  { title: "Journaling & Self-Review – Becoming Your Own Coach", duration: "40 min", completed: false, href: "/education/beginner/psychology-4" },
-                  { title: "Risk Management Myths That Are Draining Your Account", duration: "40 min", completed: false, href: "/education/beginner/psychology-5" },
-                  // Add more psychology lessons here as they are created
-                ].map((lesson, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                {lessons.map((lesson, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-center justify-between p-4 border rounded-lg ${isGuest && index !== 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
                     <div className="flex items-center space-x-3">
                       <div
                         className={`w-6 h-6 rounded-full flex items-center justify-center ${
@@ -338,12 +392,27 @@ export default function EducationPage({ params }: EducationPageProps) {
                         <p className="text-sm text-gray-600">{lesson.duration}</p>
                       </div>
                     </div>
-                    <Button asChild variant="outline" size="sm">
-                      <a href={lesson.href}>{lesson.completed ? "Review" : "Start"}</a>
-                    </Button>
+                    {isGuest && index !== 0 ? (
+                      <Lock className="h-5 w-5 text-gray-400" />
+                    ) : (
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={lesson.href}>{lesson.completed ? "Review" : "Start"}</Link>
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
+              {isGuest && (
+                <div className="mt-8 text-center">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">Unlock All Lessons!</h3>
+                  <p className="text-gray-600 mb-6">
+                    Sign up for free to unlock all beginner-level lessons and start your comprehensive trading education.
+                  </p>
+                  <Link href="/signup">
+                    <Button size="lg">Sign Up Now</Button>
+                  </Link>
+                </div>
+              )}
             </CardContent>
           </Card>
 

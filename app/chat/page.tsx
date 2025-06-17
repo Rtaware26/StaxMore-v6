@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command";
 import { supabase } from "@/lib/supabaseClient"; // Import supabase instance
 import Leaderboard from '@/components/Leaderboard';
+import { FeatureAccess } from "@/components/feature-access";
 
 // Define a type for user status
 interface UserStatus {
@@ -359,34 +360,8 @@ export default function ChatPage() {
   const pageLoading = loading; // Assuming useAuth loading covers initial auth/profile loading
   const hasLeagueMembership = userProfile?.league !== null; // Check if user is in a league
 
-  // Conditional rendering based on loading and user/profile status
-  if (loading || !user) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-center">
-        <div className="p-8 bg-card rounded-lg shadow-lg border border-border">
-          <h2 className="text-2xl font-bold text-foreground mb-4">Loading or Authentication Required</h2>
-          <p className="text-muted-foreground mb-6">{loading ? "Loading chat..." : "Please log in to access the chat."}</p>
-          {!loading && <Button onClick={() => window.location.href = '/login'}>Go to Login</Button>}
-        </div>
-      </div>
-    );
-  }
-
-  // Ensure userProfile?.league is available after loading is complete and user is logged in
-  if (!userProfile?.league) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-center">
-        <div className="p-8 bg-card rounded-lg shadow-lg border border-border">
-          <h2 className="text-2xl font-bold text-foreground mb-4">Access Denied</h2>
-          <p className="text-muted-foreground mb-6">You must be a member of a league to access the chat. Please join a league to participate in discussions.</p>
-          <Button onClick={() => window.location.href = '/competitions'}>Join a League</Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <ProtectedRoute>
+    <FeatureAccess feature="chat">
       <div className="min-h-screen bg-background">
         <div className="container mx-auto p-4 h-[calc(100vh-4rem)] relative overflow-hidden rounded-lg shadow-xl">
           {/* Animated Background Placeholder */}
@@ -666,6 +641,6 @@ export default function ChatPage() {
           </DialogContent>
         </Dialog>
       </div>
-    </ProtectedRoute>
+    </FeatureAccess>
   );
 } 

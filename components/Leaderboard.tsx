@@ -25,6 +25,7 @@ interface LeaderboardEntry {
 
 interface LeaderboardProps {
   initialLeagueId?: string; // Make leagueId optional since we'll handle it internally
+  anonymize?: boolean; // New prop to control anonymization
 }
 
 const AVAILABLE_LEAGUES = ['bronze', 'silver', 'gold', 'diamond'];
@@ -61,7 +62,7 @@ const getNextTierName = (currentLeague: string): string => {
   }
 };
 
-const Leaderboard: React.FC<LeaderboardProps> = ({ initialLeagueId = 'bronze' }) => {
+const Leaderboard: React.FC<LeaderboardProps> = ({ initialLeagueId = 'bronze', anonymize = false }) => {
   const { user, userProfile } = useAuth();
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -276,78 +277,59 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ initialLeagueId = 'bronze' })
         <table className="min-w-full text-gray-200">
           <thead className="bg-gray-800 border-b border-gray-700">
             <tr>
-              <th className="py-4 px-4 text-left text-sm font-semibold text-gray-400 uppercase tracking-wider">Rank</th>
-              <th className="py-4 px-4 text-left text-sm font-semibold text-gray-400 uppercase tracking-wider">Username</th>
-              <th className="py-4 px-4 text-left text-sm font-semibold text-gray-400 uppercase tracking-wider">Total Equity</th>
-              <th className="py-4 px-4 text-left text-sm font-semibold text-gray-400 uppercase tracking-wider">% Return</th>
-              <th className="py-4 px-4 text-left text-sm font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
+              <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Rank</th>
+              <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Trader</th>
+              <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">League</th>
+              <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Return %</th>
+              <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Total Equity</th>
+              <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider"></th>
             </tr>
           </thead>
-          <tbody>
-            {leaderboardData.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="py-8 text-center text-gray-500 text-lg">
-                  No results found for {selectedLeague.toUpperCase()} league
+          <tbody className="divide-y divide-gray-700">
+            {leaderboardData.map((entry, index) => (
+              <tr key={entry.user_id} className="hover:bg-gray-700 transition-colors duration-200">
+                <td className="py-4 px-4 whitespace-nowrap text-sm font-medium text-gray-200">{index + 1}</td>
+                <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-300">
+                  <UserHoverCard userId={entry.user_id} username={entry.username || ''} leagueId={entry.league_id} canBeCopied={entry.can_be_copied}>
+                    <span className={anonymize ? "filter blur-sm" : ""}>
+                      {anonymize ? `User #${index + 1}` : entry.username || 'N/A'}
+                    </span>
+                  </UserHoverCard>
+                </td>
+                <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-300 capitalize">
+                  {entry.league_id}
+                </td>
+                <td className="py-4 px-4 whitespace-nowrap text-sm font-medium ">
+                  <span className={anonymize ? "filter blur-sm" : (entry.return_percentage >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                    {anonymize ? '+??.?%' : `${entry.return_percentage.toFixed(2)}%`}
+                  </span>
+                </td>
+                <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-300">
+                  <span className={anonymize ? "filter blur-sm" : ""}>
+                    {anonymize ? '$??,???' : `$${entry.total_equity.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                  </span>
+                </td>
+                <td className="py-4 px-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button
+                    onClick={() => handleViewTrades(entry.user_id, entry.username, entry.league_id, entry.can_be_copied)}
+                    className={`text-blue-500 hover:text-blue-700 ${anonymize ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={anonymize} // Disable button if anonymized
+                    title={anonymize ? "Login to view trades" : "View Trades"}
+                  >
+                    <Eye className="h-5 w-5" />
+                  </button>
+                  {entry.can_be_copied && userProfile?.league === entry.league_id && userProfile.league !== 'bronze' && !anonymize && (
+                      <button
+                          // onClick={() => handleCopyTrade(entry.user_id)}
+                          className="ml-2 text-purple-500 hover:text-purple-700"
+                          title="Copy This Trader"
+                      >
+                          <Copy className="h-5 w-5" />
+                      </button>
+                  )}
                 </td>
               </tr>
-            ) : (
-              leaderboardData.map((entry, index) => {
-                const isCurrentUser = user?.id === entry.user_id;
-
-                return (
-                  <tr
-                    key={entry.user_id}
-                    className={`border-b border-gray-700 transition-all duration-200 ${
-                      isCurrentUser ? 'bg-gradient-to-r from-blue-900/50 to-purple-900/50 hover:from-blue-800/70 hover:to-purple-800/70' : 'hover:bg-gray-800/50'
-                    }`}
-                  >
-                    <td className="py-4 px-4 text-lg font-bold text-white">#{index + 1}</td>
-                    <td className="py-4 px-4 text-lg text-gray-200 font-medium flex items-center group cursor-pointer">
-                        {/* Avatar Placeholder */}
-                        <div className="w-8 h-8 bg-gray-600 rounded-full mr-3 flex items-center justify-center text-gray-300 font-bold text-sm border-2 border-gray-500">
-                            {entry.username ? entry.username.charAt(0).toUpperCase() : '-'}
-                        </div>
-                        <HoverCard openDelay={200} closeDelay={100}>
-                            <HoverCardTrigger asChild>
-                                <span onClick={() => handleViewTrades(entry.user_id, entry.username, entry.league_id, entry.can_be_copied)} className="hover:text-emerald-400 transition-colors duration-200 cursor-pointer">
-                                    {entry.username || 'Anonymous'}
-                                </span>
-                            </HoverCardTrigger>
-                            <HoverCardContent className="p-0 border-none bg-transparent shadow-none">
-                                <UserHoverCard entry={entry} />
-                            </HoverCardContent>
-                        </HoverCard>
-                    </td>
-                    <td className="py-4 px-4 text-lg text-gray-300">
-                      ${entry.total_equity?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                    </td>
-                    <td className={`py-4 px-4 text-lg font-bold ${
-                      entry.return_percentage >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}>
-                      {entry.return_percentage.toFixed(2)}%
-                    </td>
-                    <td className="py-4 px-4 text-sm text-gray-800">
-                      <button
-                        onClick={() => handleViewTrades(entry.user_id, entry.username, entry.league_id, entry.can_be_copied)}
-                        className="bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-semibold py-2 px-4 rounded-full shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span>View Trades</span>
-                      </button>
-                      {entry.can_be_copied && (
-                        <button
-                          onClick={() => { /* Implement copy trade action here */ alert(`Copying trades from ${entry.username} (ID: ${entry.user_id})`); }}
-                          className="bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white font-semibold py-2 px-4 rounded-full shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center space-x-2 ml-2 mt-2 lg:mt-0"
-                        >
-                          <Copy className="h-4 w-4" />
-                          <span>Copy Trades</span>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
+            ))}
           </tbody>
         </table>
       </div>
@@ -356,11 +338,10 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ initialLeagueId = 'bronze' })
         <UserTradesModal
           isOpen={isTradesModalOpen}
           onClose={() => setIsTradesModalOpen(false)}
-          traderId={selectedTraderId}
-          traderUsername={selectedTraderUsername || 'N/A'}
-          isCopyAllowed={selectedTraderCanBeCopied}
-          viewerLeagueId={user?.user_metadata?.league_id || null}
-          traderLeagueId={selectedTraderLeagueId}
+          traderId={selectedTraderId || ''}
+          traderUsername={selectedTraderUsername || ''}
+          traderLeagueId={selectedTraderLeagueId || ''}
+          canBeCopied={selectedTraderCanBeCopied}
         />
       )}
     </div>
